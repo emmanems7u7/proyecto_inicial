@@ -1,0 +1,6 @@
+deployment:
+  tasks:
+    - C:\xamppf\php\php.exe C:\xamppf\htdocs\proyecto_inicial\artisan migrate --force
+    - C:\xamppf\php\php.exe C:\xamppf\htdocs\proyecto_inicial\artisan config:cache
+    - C:\xamppf\php\php.exe C:\xamppf\htdocs\proyecto_inicial\artisan route:cache
+    - C:\xamppf\php\php.exe C:\xamppf\htdocs\proyecto_inicial\artisan view:cache

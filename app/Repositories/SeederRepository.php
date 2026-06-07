@@ -1,0 +1,453 @@
+<?php
+
+namespace App\Repositories;
+
+use App\Interfaces\SeederInterface;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use App\Models\Catalogo;
+use App\Models\Categoria;
+use App\Models\Menu;
+use App\Models\Seccion;
+use Spatie\Permission\Models\Permission;
+class SeederRepository extends BaseRepository implements SeederInterface
+{
+
+    /* =====================================================
+     |  HELPERS GENERALES
+     ===================================================== */
+
+    private function resolverSeeder(string $tipo, string $prefijoClase): array
+    {
+        $stage = strtoupper(env('APP_STAGE'));
+
+        $carpeta = match ($stage) {
+            'DEV' => "DEV\\{$tipo}",
+            'QA' => "QA\\{$tipo}",
+            'PROD' => "PROD\\{$tipo}",
+            default => "GEN\\{$tipo}",
+        };
+
+        $fecha = now()->format('Ymd');
+        $clase = "{$prefijoClase}_{$fecha}";
+        $ruta = database_path("seeders/{$carpeta}/{$clase}.php");
+
+        return compact('stage', 'carpeta', 'clase', 'ruta');
+    }
+
+    private function crearSeederBase(
+        string $ruta,
+        string $namespace,
+        string $modelo_ruta,
+        string $modelo,
+        string $clase,
+        string $variable,
+        string $registro,
+        string $claveUnica
+    ): void {
+        $plantilla = <<<PHP
+                        <?php
+
+                        namespace {$namespace};
+
+                        use Illuminate\Database\Seeder;
+                        use {$modelo_ruta};
+                        use Database\Seeders\Traits\RunsOnce;
+                        class {$clase} extends Seeder
+                        {
+                            use RunsOnce;
+                            protected function handle(): void
+                            {
+                                \${$variable} = [
+                        {$registro}
+                                ];
+
+                                foreach (\${$variable} as \$data) {
+                                    {$modelo}::firstOrCreate(
+                                        {$claveUnica},
+                                        \$data
+                                    );
+                                }
+                            }
+                        }
+                        PHP;
+
+        File::put($ruta, $plantilla);
+    }
+
+    private function insertarRegistro(
+        string $ruta,
+        string $needle,
+        string $registro,
+        string $arrayName
+    ): void {
+        $contenido = File::get($ruta);
+
+        if (!Str::contains($contenido, $needle)) {
+            $contenido = str_replace(
+                "        \${$arrayName} = [",
+                "        \${$arrayName} = [\n{$registro}",
+                $contenido
+            );
+            File::put($ruta, $contenido);
+        }
+    }
+
+    private function eliminarRegistro(
+        string $ruta,
+        callable $callbackEliminar,
+        string $stage,
+        string $tipo,
+        string $clase
+    ): void {
+
+        $contenido = File::get($ruta);
+
+        $original = $contenido;
+
+        // buscar array principal
+        preg_match('/=\s*\[(.*)\];/s', $contenido, $match);
+
+        if (!isset($match[1])) {
+            return;
+        }
+
+        $arrayContenido = $match[1];
+
+        // obtener bloques [
+        preg_match_all('/\[\s*(.*?)\s*\]\s*,?/s', $arrayContenido, $bloques);
+
+        $items = [];
+
+        foreach ($bloques[0] as $bloqueCompleto) {
+
+            // decidir si conservar
+            if (!$callbackEliminar($bloqueCompleto)) {
+                $items[] = trim($bloqueCompleto);
+            }
+        }
+
+        // si no quedan items eliminar archivo
+        if (empty($items)) {
+
+            File::delete($ruta);
+
+            $this->eliminarLlamadaDeSeederPadre(
+                $stage,
+                $tipo,
+                $clase
+            );
+
+            return;
+        }
+
+        // reconstruir array
+        $nuevoArray = implode("\n        ", $items);
+
+        $contenido = preg_replace(
+            '/=\s*\[(.*)\];/s',
+            "= [\n        {$nuevoArray}\n    ];",
+            $contenido
+        );
+
+        if ($contenido !== $original) {
+            File::put($ruta, $contenido);
+        }
+    }
+
+    private function procesarEliminacion(
+        string $tipo,
+        string $prefijoSeeder,
+        callable $callbackEliminar
+    ): void {
+
+        $stage = strtoupper(env('APP_STAGE'));
+
+        $ruta = database_path("seeders/{$stage}/{$tipo}");
+
+        if (!File::exists($ruta)) {
+            return;
+        }
+
+        foreach (File::files($ruta) as $seeder) {
+
+            if (!Str::contains($seeder->getFilename(), $prefijoSeeder)) {
+                continue;
+            }
+
+            $clase = pathinfo(
+                $seeder->getFilename(),
+                PATHINFO_FILENAME
+            );
+
+            $this->eliminarRegistro(
+                $seeder->getRealPath(),
+                $callbackEliminar,
+                $stage,
+                $tipo,
+                $clase
+            );
+        }
+    }
+
+    /* =====================================================
+     |  MENUS
+     ===================================================== */
+
+    function guardarEnSeederMenu(Menu $menu)
+    {
+        $data = $this->resolverSeeder('Menus', 'SeederMenu');
+        File::ensureDirectoryExists(database_path("seeders/{$data['carpeta']}"));
+        $padre_id = $menu->padre_id !== null ? $menu->padre_id : 'null';
+        $modulo_id = $menu->modulo_id !== null ? $menu->modulo_id : 'null';
+
+        $registro = <<<PHP
+            [
+                'id' => {$menu->id},
+                'nombre' => '{$menu->nombre}',
+                'orden' => {$menu->orden},
+                'padre_id' => {$padre_id},
+                'seccion_id' => {$menu->seccion_id},
+                'ruta' => '{$menu->ruta}',
+                'modulo_id' => {$modulo_id},
+            ],
+PHP;
+
+
+
+        if (!File::exists($data['ruta'])) {
+            $this->crearSeederBase(
+                $data['ruta'],
+                "Database\\Seeders\\{$data['stage']}\\Menus",
+                "\App\Models\Menu",
+                'Menu',
+                $data['clase'],
+                'menus',
+                $registro,
+                "['nombre' => \$data['nombre']]"
+            );
+        } else {
+            $this->insertarRegistro($data['ruta'], "'nombre' => '{$menu->nombre}'", $registro, 'menus');
+        }
+
+        $this->agregarSeederADatabaseSeeder($data['clase'], $data['stage'], 'Menus');
+    }
+
+    public function eliminarDeSeederMenu($menu): void
+    {
+        $this->procesarEliminacion(
+            'Menus',
+            'SeederMenu_',
+
+            function ($bloque) use ($menu) {
+
+                return Str::contains(
+                    $bloque,
+                    "'nombre' => '{$menu->nombre}'"
+                );
+            }
+        );
+    }
+
+    /* =====================================================
+     |  SECCIONES
+     ===================================================== */
+
+    public function guardarEnSeederSeccion(Seccion $seccion): void
+    {
+        $data = $this->resolverSeeder('Secciones', 'SeederSeccion');
+        File::ensureDirectoryExists(database_path("seeders/{$data['carpeta']}"));
+
+        $registro = <<<PHP
+            [
+                'id' => {$seccion->id},
+                'titulo' => '{$seccion->titulo}',
+                'icono' => '{$seccion->icono}',
+                'posicion' => {$seccion->posicion},
+            ],
+PHP;
+
+        if (!File::exists($data['ruta'])) {
+            $this->crearSeederBase(
+                $data['ruta'],
+                "Database\\Seeders\\{$data['stage']}\\Secciones",
+                '\App\Models\Seccion',
+                'Seccion',
+                $data['clase'],
+                'secciones',
+                $registro,
+                "['titulo' => \$data['titulo']]"
+            );
+        } else {
+            $this->insertarRegistro($data['ruta'], "'titulo' => '{$seccion->titulo}'", $registro, 'secciones');
+        }
+
+        $this->agregarSeederADatabaseSeeder($data['clase'], $data['stage'], 'Secciones');
+    }
+
+    public function eliminarDeSeederSeccion($seccion): void
+    {
+        $this->procesarEliminacion(
+            'Secciones',
+            'SeederSeccion_',
+
+            function ($bloque) use ($seccion) {
+
+                return Str::contains(
+                    $bloque,
+                    "'titulo' => '{$seccion->titulo}'"
+                );
+            }
+        );
+    }
+
+    /* =====================================================
+     |  PERMISOS
+     ===================================================== */
+
+    public function guardarEnSeederPermiso($permiso, $id_relacion = 0): void
+    {
+        $data = $this->resolverSeeder('Permisos', 'SeederPermisos');
+        File::ensureDirectoryExists(database_path("seeders/{$data['carpeta']}"));
+        $id_relacion_f = $id_relacion !== null ? $id_relacion : 'null';
+
+        $registro = <<<PHP
+            [
+                'id' => {$permiso->id},
+                'name' => '{$permiso->name}',
+                'tipo' => '{$permiso->tipo}',
+                'id_relacion' => {$id_relacion_f},
+                'dinamico' => {$permiso->dinamico},
+                'guard_name' => '{$permiso->guard_name}',
+            ],
+PHP;
+
+        if (!File::exists($data['ruta'])) {
+            $this->crearSeederBase(
+                $data['ruta'],
+                "Database\\Seeders\\{$data['stage']}\\Permisos",
+                '\Spatie\Permission\Models\Permission',
+                'Permission',
+                $data['clase'],
+                'permisos',
+                $registro,
+                "['name' => \$data['name'], 'tipo' => \$data['tipo']]"
+            );
+        } else {
+            $this->insertarRegistro($data['ruta'], "'name' => '{$permiso->name}'", $registro, 'permisos');
+        }
+
+        $this->agregarSeederADatabaseSeeder($data['clase'], $data['stage'], 'Permisos');
+    }
+
+    public function eliminarDeSeederPermiso($permiso): void
+    {
+        $this->procesarEliminacion(
+            'Permisos',
+            'SeederPermisos_',
+
+            function ($bloque) use ($permiso) {
+
+                return Str::contains(
+                    $bloque,
+                    "'name' => '{$permiso->name}'"
+                )
+                    &&
+                    Str::contains(
+                        $bloque,
+                        "'tipo' => '{$permiso->tipo}'"
+                    );
+            }
+        );
+    }
+    /* =====================================================
+     |  CATEGORIAS
+     ===================================================== */
+
+    public function guardarEnSeederCategoria(Categoria $categoria): void
+    {
+        $data = $this->resolverSeeder('Categorias', 'SeederCategoria');
+        File::ensureDirectoryExists(database_path("seeders/{$data['carpeta']}"));
+
+        $registro = <<<PHP
+            [
+                'id' => {$categoria->id},
+                'nombre' => '{$categoria->nombre}',
+                'descripcion' => '{$categoria->descripcion}',
+                'estado' => '{$categoria->estado}',
+            ],
+PHP;
+
+        if (!File::exists($data['ruta'])) {
+            $this->crearSeederBase(
+                $data['ruta'],
+                "Database\\Seeders\\{$data['stage']}\\Categorias",
+                '\App\Models\Categoria',
+                'Categoria',
+                $data['clase'],
+                'categorias',
+                $registro,
+                "['nombre' => \$data['nombre']]"
+            );
+        } else {
+            $this->insertarRegistro($data['ruta'], "'nombre' => '{$categoria->nombre}'", $registro, 'categorias');
+        }
+
+        $this->agregarSeederADatabaseSeeder($data['clase'], $data['stage'], 'Categorias');
+    }
+
+    public function eliminarDeSeederCategoria($categoria): void
+    {
+        $this->procesarEliminacion(
+            'Categorias',
+            'SeederCategoria_',
+            "/\[\s*'nombre'\s*=>\s*'" . preg_quote($categoria->nombre, '/') . "'.*?\],?/s"
+        );
+    }
+    /* =====================================================
+     |  CATALOGOS
+     ===================================================== */
+
+    public function guardarEnSeederCatalogo($catalogo): void
+    {
+        $data = $this->resolverSeeder('Catalogos', 'SeederCatalogo');
+        File::ensureDirectoryExists(database_path("seeders/{$data['carpeta']}"));
+
+        $registro = <<<PHP
+            [
+                'id' => {$catalogo->id},
+                'categoria_id' => {$catalogo->categoria_id},
+                'catalogo_parent' => !empty($catalogo->catalogo_parent)? $catalogo->catalogo_parent: '',
+                'catalogo_codigo' => '{$catalogo->catalogo_codigo}',
+                'catalogo_descripcion' => '{$catalogo->catalogo_descripcion}',
+                'catalogo_estado' => '{$catalogo->catalogo_estado}',
+            ],
+            PHP;
+
+        if (!File::exists($data['ruta'])) {
+            $this->crearSeederBase(
+                $data['ruta'],
+                "Database\\Seeders\\{$data['stage']}\\Catalogos",
+                '\App\Models\Catalogo',
+                'Catalogo',
+                $data['clase'],
+                'catalogos',
+                $registro,
+                "['catalogo_codigo' => \$data['catalogo_codigo']]"
+            );
+        } else {
+            $this->insertarRegistro($data['ruta'], "'catalogo_codigo' => '{$catalogo->catalogo_codigo}'", $registro, 'catalogos');
+        }
+
+        $this->agregarSeederADatabaseSeeder($data['clase'], $data['stage'], 'Catalogos');
+    }
+
+    public function eliminarDeSeederCatalogo($catalogo): void
+    {
+        $this->procesarEliminacion(
+            'Catalogos',
+            'SeederCatalogo_',
+            "/\[\s*'catalogo_codigo'\s*=>\s*'" . preg_quote($catalogo->catalogo_codigo, '/') . "'.*?\],?/s"
+        );
+    }
+}
