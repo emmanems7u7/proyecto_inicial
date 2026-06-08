@@ -17,13 +17,11 @@ class MenuController extends Controller
 {
     protected $menuRepository;
     protected $PermisoRepository;
-    protected $IARepository;
 
-    public function __construct(MenuInterface $MenuInterface, PermisoInterface $permisoInterface, IAInterface $iAInterface)
+    public function __construct(MenuInterface $MenuInterface, PermisoInterface $permisoInterface)
     {
         $this->PermisoRepository = $permisoInterface;
         $this->menuRepository = $MenuInterface;
-        $this->IARepository = $iAInterface;
 
     }
     public function index()
@@ -37,14 +35,13 @@ class MenuController extends Controller
 
         $menus = Menu::with('seccion')->paginate(10);
 
-        $modulos = Modulo::where('activo', 1)->get();
         $routes = Route::getRoutes();
         //dd($routes);
         $routes = collect($routes)->filter(function ($route) {
             return str_contains($route->getName(), 'index');
         });
 
-        return view('menus.index', compact('modulos', 'menus', 'secciones', 'routes', 'breadcrumb'));
+        return view('menus.index', compact('menus', 'secciones', 'routes', 'breadcrumb'));
     }
 
     public function create()

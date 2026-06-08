@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\ApuestaController;
+use App\Http\Controllers\EquipoController;
+use App\Http\Controllers\PartidoController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Artisan;
@@ -33,9 +36,9 @@ use App\Http\Controllers\SeederController;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return redirect('/login');
-});
+use App\Http\Controllers\WelcomeController;
+
+Route::get('/', [WelcomeController::class, 'index']);
 
 Route::get('/clear-cache', function () {
     Artisan::call('optimize:clear');
@@ -227,7 +230,19 @@ Route::middleware(['auth'])->group(function () {
 
 
 
+    Route::get('/partidos', [PartidoController::class, 'index'])
+        ->name('partidos.index');
 
+    Route::post('/partidos/sincronizar', [PartidoController::class, 'sincronizar'])
+        ->name('partidos.sincronizar');
+
+
+    Route::get('/equipos', [EquipoController::class, 'index'])->name('equipos.index');
+
+    Route::post('/equipos/sincronizar', [EquipoController::class, 'sincronizar'])->name('equipos.sincronizar');
+
+    Route::post('/apuestas', [ApuestaController::class, 'store'])
+        ->name('apuestas.store');
 });
 
 

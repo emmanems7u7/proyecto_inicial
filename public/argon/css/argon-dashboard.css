@@ -11074,6 +11074,10 @@ fieldset:disabled .btn {
   color: #fb6340 !important;
 }
 
+.text-yellow {
+  color: #fbc340 !important;
+}
+
 .text-danger {
   color: #f5365c !important;
 }

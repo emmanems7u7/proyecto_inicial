@@ -27,22 +27,7 @@
                         @enderror
                     </div>
 
-                    <div class="mb-3" id="contenedorModuloPadre" style="display: none;">
-                        <label for="modulo_id" class="form-label">Seleccione un Módulo</label>
-                        <select name="modulo_id" id="modulo_id"
-                            class="form-select @error('modulo_id') is-invalid @enderror">
-                            <option value="" selected disabled>Selecciona un módulo</option>
-                            @foreach($modulos as $modulo)
-                                <option value="{{ $modulo->id }}" {{ old('modulo_id') == $modulo->id ? 'selected' : '' }}>
-                                    {{ $modulo->nombre }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('modulo_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
+                   
 
                     <div class="mb-3">
                         <label for="seccion_id"

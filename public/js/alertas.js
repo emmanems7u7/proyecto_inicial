@@ -1,3 +1,36 @@
+alertify.defaults.theme.ok = "btn btn-danger";
+alertify.defaults.theme.cancel = "btn btn-secondary";
+alertify.defaults.theme.input = "form-control";
+alertify.defaults.glossary.title = "Confirmar acción";
+alertify.defaults.transition = "zoom";
+
+function confirmarEliminacion(
+    formId,
+    mensaje = '¿Estás seguro de que deseas eliminar este elemento?',
+    callback = null
+) {
+    alertify.confirm(
+        'Confirmar acción',
+        mensaje,
+        function() {
+
+            if (callback) {
+                callback();
+                return;
+            }
+
+            document.getElementById(formId).submit();
+        },
+        function() {
+            alertify.error('Acción cancelada');
+        }
+    ).set('labels', {
+        ok: 'Aceptar',
+        cancel: 'Cancelar'
+    });
+}
+
+
 function mostrarAlerta(tipo, mensaje, opciones = {}) {
 
     switch (tipo) {

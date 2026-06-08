@@ -19,11 +19,10 @@ class SeccionController extends Controller
     protected $PermisoRepository;
     protected $IARepository;
 
-    public function __construct(MenuInterface $MenuInterface, PermisoInterface $PermisoInterface, IAInterface $iAInterface)
+    public function __construct(MenuInterface $MenuInterface, PermisoInterface $PermisoInterface)
     {
         $this->PermisoRepository = $PermisoInterface;
         $this->menuRepository = $MenuInterface;
-        $this->IARepository = $iAInterface;
     }
 
     public function index()
