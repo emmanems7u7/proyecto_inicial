@@ -701,6 +701,58 @@
         </div>
 
 
+        <footer class="footer pt-2 pb-2">
+            <div class="container-fluid">
+
+                <div class="row align-items-center">
+
+                    <!-- IZQUIERDA -->
+                    <div class="col-12 col-lg-6 text-center text-lg-start mb-2 mb-lg-0">
+                        <small class="text-muted">
+                            ©
+                            <script>
+                                document.write(new Date().getFullYear())
+                            </script>
+                            App de Apuestas BCP
+                        </small>
+                    </div>
+
+                    <!-- DERECHA -->
+                    <div class="col-12 col-lg-6 text-center text-lg-end">
+
+                        <!-- título -->
+                        <div class="small text-muted mb-1">
+                            <i class="fas fa-headset me-1"></i>
+                            Contacto
+                        </div>
+
+                        <!-- medios -->
+                        <div
+                            class="d-inline-flex flex-wrap justify-content-center justify-content-lg-end align-items-center gap-3">
+
+                            <small>
+                                <i class="fas fa-envelope me-1 text-primary"></i>
+                                <a href="mailto:DchavezR@bcp.com.bo" class="text-muted text-decoration-none">
+                                    DchavezR@bcp.com.bo
+                                </a>
+                            </small>
+
+                            <small>
+                                <i class="fab fa-whatsapp me-1 text-success"></i>
+                                <a href="https://wa.me/78777346" target="_blank"
+                                    class="text-muted text-decoration-none">
+                                    78777346
+                                </a>
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+        </footer>
     </main>
 
 
