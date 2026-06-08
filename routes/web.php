@@ -241,10 +241,10 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/equipos/sincronizar', [EquipoController::class, 'sincronizar'])->name('equipos.sincronizar');
 
-    Route::post('/apuestas', [ApuestaController::class, 'store'])
-        ->name('apuestas.store');
-});
 
+});
+Route::post('/apuestas', [ApuestaController::class, 'store'])
+    ->name('apuestas.store');
 
 
 
