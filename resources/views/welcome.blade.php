@@ -190,7 +190,7 @@
                                         title="
                                        <div class='text-start'>
                                             <strong>Fecha:</strong> {{ \Carbon\Carbon::parse($partido->fecha)->format('d/m/Y') }}<br>
-                                            <strong>Hora:</strong> {{ substr($partido->hora, 0, 5) }}<br><br>
+                                            <strong>Hora:</strong> {{ \Carbon\Carbon::parse($partido->hora)->subHours(4)->format('H:i') }}<br><br>
                                 
                                             <strong>Estadio:</strong><br>
                                             <i class='fas fa-map-marker-alt text-danger me-1'></i> {{ $partido->estadio }}<br><br>
