@@ -111,7 +111,7 @@
 
                                         <small class="text-muted d-block">
                                             <i class="fas fa-clock"></i>
-                                            {{ substr($partido->hora, 0, 5) }}
+                                            {{ \Carbon\Carbon::parse($partido->hora)->subHours(4)->format('H:i') }}
                                         </small>
 
                                     </div>
