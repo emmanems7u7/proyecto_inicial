@@ -237,6 +237,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('partidos.sincronizar');
 
 
+    Route::get('/partidos/aprobar/{apuesta}', [ApuestaController::class, 'aprobar'])->name('partidos.aprobar');
+    Route::get('/partidos/rechazar/{apuesta}', [ApuestaController::class, 'rechazar'])->name('partidos.rechazar');
+
+
     Route::get('/equipos', [EquipoController::class, 'index'])->name('equipos.index');
 
     Route::post('/equipos/sincronizar', [EquipoController::class, 'sincronizar'])->name('equipos.sincronizar');

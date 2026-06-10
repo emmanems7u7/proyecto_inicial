@@ -90,4 +90,6 @@ class PartidoController extends Controller
             ->route('partidos.index')
             ->with('success', 'Partidos sincronizados correctamente.');
     }
+
+
 }

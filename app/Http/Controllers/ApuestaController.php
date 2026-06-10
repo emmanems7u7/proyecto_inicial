@@ -303,4 +303,19 @@ class ApuestaController extends Controller
             'mensaje' => 'Comprobante BCP válido'
         ];
     }
+
+
+    public function aprobar(Apuesta $apuesta)
+    {
+        $apuesta->estado_pago = 'aprobado';
+        $apuesta->mensaje_validador = 'Comprobante validado manualmente por el administrador';
+        $apuesta->save();
+        return back()->with('status', 'Apuesta aprobada correctamente.');
+    }
+
+    public function rechazar(Apuesta $apuesta)
+    {
+        $apuesta->delete();
+        return back()->with('status', 'Apuesta rechazada correctamente.');
+    }
 }
