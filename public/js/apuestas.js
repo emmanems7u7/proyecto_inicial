@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    mostrarAlerta('error', 'Error inesperado');
+                    mostrarAlerta('error', 'esperado');
                     return;
                 }
 

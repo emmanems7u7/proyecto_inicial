@@ -257,16 +257,23 @@
                                             <i class="fas fa-chevron-down"></i> Apuestas
                                         </button>
 
-                                        <button class="btn btn-primary btn-xs btn-apostar"
-                                            data-id="{{ $partido->id }}" data-local="{{ $partido->local->nombre }}"
-                                            data-local-logo="{{ $partido->local->logo }}"
-                                            data-visitante="{{ $partido->visitante->nombre }}"
-                                            data-visitante-logo="{{ $partido->visitante->logo }}">
+                                        @php
+                                            $fechaHoraPartido = \Carbon\Carbon::parse(
+                                                $partido->fecha . ' ' . $partido->hora,
+                                            )->subHours(4);
+                                        @endphp
 
-                                            <i class="fas fa-coins me-1"></i>
-                                            Apostar
-
-                                        </button>
+                                        @if (now()->lt($fechaHoraPartido))
+                                            <button class="btn btn-primary btn-xs btn-apostar"
+                                                data-id="{{ $partido->id }}"
+                                                data-local="{{ $partido->local->nombre }}"
+                                                data-local-logo="{{ $partido->local->logo }}"
+                                                data-visitante="{{ $partido->visitante->nombre }}"
+                                                data-visitante-logo="{{ $partido->visitante->logo }}">
+                                                <i class="fas fa-coins me-1"></i>
+                                                Apostar
+                                            </button>
+                                        @endif
 
                                     </div>
                                 </div>

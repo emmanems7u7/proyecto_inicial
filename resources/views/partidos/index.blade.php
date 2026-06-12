@@ -302,9 +302,9 @@
                                                             @if ($apuesta->estado_pago == 'pendiente')
                                                                 <a href="{{ route('partidos.aprobar', $apuesta) }}"
                                                                     class="btn btn-xs btn-info">Aprobar</a>
-                                                                <a href="{{ route('partidos.rechazar', $apuesta) }}"
-                                                                    class="btn btn-xs btn-danger">Rechazar</a>
                                                             @endif
+                                                            <a href="{{ route('partidos.rechazar', $apuesta) }}"
+                                                                class="btn btn-xs btn-danger">Rechazar</a>
                                                         </div>
 
                                                     </div>
