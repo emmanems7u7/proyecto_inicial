@@ -10,6 +10,7 @@ use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -97,5 +98,15 @@ class User extends Authenticatable
     {
         return "{$this->name}" . ' ' . '(' . "{$this->email}" . ')';
     }
-
+    public function tiendas(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Tienda::class,
+            'usuario_tienda',
+            'user_id',
+            'tienda_id'
+        )
+            ->withPivot('estado')
+            ->withTimestamps();
+    }
 }

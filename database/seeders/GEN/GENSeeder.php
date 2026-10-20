@@ -24,6 +24,21 @@ class GENSeeder extends Seeder
         $this->call(SeccionesSeeder::class);
         $this->call(MenusSeeder::class);
         $this->call(ConfiguracionCredencialesSeeder::class);
+        $this->call(PermisosSistemaSeeder::class);
+        $this->call(RolesSistemaSeeder::class);
 
+        $this->call(CatalogosSistemaSeeder::class);
+        $this->call([
+            CatalogoSisSeeder::class,           // 1. Catálogos (documentos, ciudades, unidades, motivos)
+            EmpresaSeeder::class,            // 2. Empresa
+            TiendaSeeder::class,             // 3. Tiendas
+            AlmacenSeeder::class,            // 4. Almacenes (2 por tienda)
+            TiendaUsuarioSeeder::class,      // 5. Usuarios <-> Tiendas
+            CategoriaProductoSeeder::class,  // 6. Categorías
+            ProductoSeeder::class,           // 7. Productos
+            ClienteSeeder::class,            // 8. Clientes
+            ProveedorSeeder::class,          // 9. Proveedores
+            InventarioSeeder::class,         // 10. Stock, lotes y kardex
+        ]);
     }
 }
