@@ -28,6 +28,8 @@ class GENSeeder extends Seeder
         $this->call(RolesSistemaSeeder::class);
 
         $this->call(CatalogosSistemaSeeder::class);
+
+        // para pruebas de desarrollo, se puede comentar en producción
         $this->call([
             CatalogoSisSeeder::class,           // 1. Catálogos (documentos, ciudades, unidades, motivos)
             EmpresaSeeder::class,            // 2. Empresa
