@@ -6,6 +6,8 @@ use App\Models\Catalogo;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Interfaces\CatalogoInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CatalogoController extends Controller
 {
@@ -159,6 +161,69 @@ class CatalogoController extends Controller
         ]);
     }
 
+    public function storeRapido(Request $request)
+    {
+        $request->validate([
+            'categoria' => ['required'],
+            'prefijo' => ['required', 'string', 'max:10'],
+            'descripcion' => ['required', 'string', 'max:150'],
+        ]);
 
+        return DB::transaction(function () use ($request) {
+
+            // Buscar categoría por ID o nombre
+            $categoria = is_numeric($request->categoria)
+                ? Categoria::find($request->categoria)
+                : Categoria::where('nombre', $request->categoria)->first();
+
+            if (!$categoria || !$categoria->estado) {
+                throw ValidationException::withMessages([
+                    'categoria' => 'La categoría seleccionada no existe o está inactiva.',
+                ]);
+            }
+
+            $prefijo = $request->prefijo;
+
+            // Evitar duplicados dentro de la misma categoría
+            $existe = Catalogo::where('categoria_id', $categoria->id)
+                ->whereRaw('LOWER(catalogo_descripcion) = ?', [
+                    mb_strtolower(trim($request->descripcion))
+                ])
+                ->where('catalogo_estado', 1)
+                ->exists();
+
+            if ($existe) {
+                throw ValidationException::withMessages([
+                    'descripcion' => 'Este registro ya existe en el catálogo.',
+                ]);
+            }
+
+            // Obtener último código del prefijo
+            $codigos = Catalogo::where('catalogo_codigo', 'like', $prefijo . '%')
+                ->lockForUpdate()
+                ->pluck('catalogo_codigo');
+
+            $ultimo = $codigos->map(function ($codigo) use ($prefijo) {
+                return (int) substr($codigo, strlen($prefijo));
+            })->max() ?? 0;
+
+            $codigo = $prefijo . str_pad($ultimo + 1, 3, '0', STR_PAD_LEFT);
+
+            $catalogo = Catalogo::create([
+                'categoria_id' => $categoria->id,
+                'catalogo_parent' => null,
+                'catalogo_codigo' => $codigo,
+                'catalogo_descripcion' => trim($request->descripcion),
+                'catalogo_estado' => 1,
+            ]);
+
+            return response()->json([
+                'id' => $catalogo->id,
+                'codigo' => $catalogo->catalogo_codigo,
+                'descripcion' => $catalogo->catalogo_descripcion,
+            ]);
+
+        });
+    }
 }
 

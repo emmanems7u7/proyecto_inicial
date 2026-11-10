@@ -13,9 +13,19 @@ class Producto extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'empresa_id', 'categoria_producto_id', 'unidad_medida_id', 'codigo', 'codigo_barras',
-        'nombre', 'descripcion', 'imagen', 'precio_compra', 'precio_venta',
-        'maneja_lotes', 'maneja_vencimiento', 'estado',
+        'empresa_id',
+        'categoria_producto_id',
+        'unidad_medida_id',
+        'codigo',
+        'codigo_barras',
+        'nombre',
+        'descripcion',
+        'imagen',
+        'precio_compra',
+        'precio_venta',
+        'maneja_lotes',
+        'maneja_vencimiento',
+        'estado',
     ];
 
     protected $casts = [
@@ -52,7 +62,7 @@ class Producto extends Model
 
     public function scopeBuscar(Builder $query, ?string $termino): Builder
     {
-        if (! $termino) {
+        if (!$termino) {
             return $query;
         }
 

@@ -41,6 +41,9 @@ class GENSeeder extends Seeder
             ClienteSeeder::class,            // 8. Clientes
             ProveedorSeeder::class,          // 9. Proveedores
             InventarioSeeder::class,         // 10. Stock, lotes y kardex
+            Fase2ConfiguracionSeeder::class,
+            Fase2PermisosRolesSeeder::class,
+
         ]);
     }
 }

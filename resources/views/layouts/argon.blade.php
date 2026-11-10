@@ -5,8 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="apple-touch-icon" sizes="76x76" href="{{ asset('img/apple-icon.png')  }}">
-    <link rel="icon" type="image/png" href="{{ asset('logo.png')  }}">
+    <link rel="apple-touch-icon" sizes="76x76" href="{{ asset('img/apple-icon.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('logo.png') }}">
     <title>{{ config('app.name', 'Laravel') }}</title>
     <!--     Fonts and icons     -->
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" rel="stylesheet">
@@ -16,7 +16,7 @@
 
     <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
     <!-- CSS Files -->
-    <link id="pagestyle" href="{{ asset('argon/css/argon-dashboard.css?v=2.1.0')  }}" rel="stylesheet" />
+    <link id="pagestyle" href="{{ asset('argon/css/argon-dashboard.css?v=2.1.0') }}" rel="stylesheet" />
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" crossorigin="" />
 
@@ -97,7 +97,8 @@
     }
 </style>
 
-<div id="overlay-spinner" style="
+<div id="overlay-spinner"
+    style="
     display:none;
     position:fixed;
     top:0; left:0;
@@ -122,7 +123,7 @@
             <i class="fas fa-times p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
                 aria-hidden="true" id="iconSidenav"></i>
             <a class="navbar-brand m-0" href="{{ route('home') }}">
-                <img src="{{ asset('logo.png')}}" style="" alt="">
+                <img src="{{ asset('logo.png') }}" style="" alt="">
                 <span class="ms-1 font-weight-bold">{{ config('app.name', 'Laravel') }}</span>
             </a>
         </div>
@@ -131,28 +132,30 @@
             @include('layouts.lateral')
         </div>
         <!-- CDN de SortableJS -->
-        @if($configuracion->mantenimiento == 1)
+        @if ($configuracion->mantenimiento == 1)
             <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
             <script>
                 const lista = document.getElementById('secciones-list');
 
                 new Sortable(lista, {
                     animation: 150,
-                    onEnd: function () {
+                    onEnd: function() {
                         const orden = Array.from(document.querySelectorAll('.seccion-item'))
                             .map((el, index) => ({
                                 id: el.dataset.id,
                                 posicion: index + 1
                             }));
 
-                        fetch('{{ route("secciones.ordenar") }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                            },
-                            body: JSON.stringify({ orden })
-                        }).then(res => res.json())
+                        fetch('{{ route('secciones.ordenar') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                },
+                                body: JSON.stringify({
+                                    orden
+                                })
+                            }).then(res => res.json())
                             .then(data => {
                                 if (data.status === 'success') {
                                     mostrarAlerta('success', data.message);
@@ -163,8 +166,6 @@
                             })
                     }
                 });
-
-
             </script>
         @endif
 
@@ -179,39 +180,219 @@
 
 
             <script>
-                document.addEventListener('DOMContentLoaded', function () {
+                document.addEventListener('DOMContentLoaded', function() {
                     alertify.set('notifier', 'position', 'top-right');
 
                     @foreach (['status' => 'success', 'error' => 'error', 'warning' => 'warning'] as $msg => $type)
-                        @if(session($msg))
+                        @if (session($msg))
                             alertify.{{ $type }}(@json(session($msg)));
                         @endif
                     @endforeach
 
-                    @if($errors->any())
+                    @if ($errors->any())
                         @foreach ($errors->all() as $error)
                             alertify.error(@json($error));
                         @endforeach
                     @endif
-                 });
+                });
             </script>
 
             @yield('content')
 
         </div>
 
+        <div class="modal fade" id="modalCrearCatalogo" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
 
+                    <form id="formCrearCatalogo">
+
+                        @csrf
+
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                Agregar <span id="tituloCatalogo"></span>
+                            </h5>
+
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+
+                        <div class="modal-body">
+
+                            <input type="hidden" id="catalogo_categoria">
+                            <input type="hidden" id="catalogo_prefijo">
+                            <input type="hidden" id="catalogo_select">
+
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+
+                                <input type="text" id="catalogo_descripcion" class="form-control"
+                                    placeholder="Ingrese el nombre" required maxlength="150">
+
+                                <div class="invalid-feedback" id="errorCatalogo"></div>
+                            </div>
+
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle"></i>
+                                Este registro se agregará al catálogo correspondiente
+                                y estará disponible para futuros registros.
+                            </div>
+
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                Cancelar
+                            </button>
+
+                            <button type="submit" class="btn btn-primary" id="btnGuardarCatalogo">
+                                <i class="fas fa-save"></i> Guardar
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+        </div>
     </main>
 
 
     @include('layouts.personalizacion')
 
-    <script>
 
-        document.addEventListener('DOMContentLoaded', function () {
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            const modalElemento = document.getElementById('modalCrearCatalogo');
+            const modal = new bootstrap.Modal(modalElemento);
+
+            const form = document.getElementById('formCrearCatalogo');
+
+            // Abrir modal
+            document.addEventListener('click', function(e) {
+
+                const boton = e.target.closest('.btn-crear-catalogo');
+
+                if (!boton) return;
+
+                const select = boton.dataset.select;
+                const categoria = boton.dataset.categoria;
+                const prefijo = boton.dataset.prefijo;
+                const label = boton.dataset.label;
+
+                document.getElementById('catalogo_select').value = select;
+                document.getElementById('catalogo_categoria').value = categoria;
+                document.getElementById('catalogo_prefijo').value = prefijo;
+
+                document.getElementById('tituloCatalogo').textContent = label;
+                document.getElementById('catalogo_descripcion').value = '';
+
+                document.getElementById('errorCatalogo').textContent = '';
+
+                modal.show();
+
+                setTimeout(() => {
+                    document.getElementById('catalogo_descripcion').focus();
+                }, 300);
+
+            });
+
+            // Guardar catálogo
+            form.addEventListener('submit', async function(e) {
+
+                e.preventDefault();
+
+                const boton = document.getElementById('btnGuardarCatalogo');
+                const descripcion = document.getElementById('catalogo_descripcion').value.trim();
+                const errorCatalogo = document.getElementById('errorCatalogo');
+
+                if (!descripcion) {
+                    mostrarAlerta('warning', 'Ingrese el nombre del catálogo.');
+                    return;
+                }
+
+                boton.disabled = true;
+                boton.innerHTML = 'Guardando...';
+
+                errorCatalogo.textContent = '';
+
+                try {
+
+                    const response = await fetch("{{ route('catalogos.storeRapido') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': form.querySelector('[name="_token"]').value
+                        },
+                        body: JSON.stringify({
+                            categoria: document.getElementById('catalogo_categoria')
+                                .value,
+                            prefijo: document.getElementById('catalogo_prefijo').value,
+                            descripcion: descripcion
+                        })
+                    });
+
+                    const resultado = await response.json();
+
+                    if (!response.ok) {
+
+                        // Errores de validación de Laravel
+                        if (resultado.errors) {
+                            const primerError = Object.values(resultado.errors)[0][0];
+                            throw new Error(primerError);
+                        }
+
+                        throw new Error(resultado.message || 'No se pudo crear el registro.');
+                    }
+
+                    // Obtener el selector correspondiente
+                    const selectId = document.getElementById('catalogo_select').value;
+                    const select = document.getElementById(selectId);
+
+                    // Agregar nueva opción y seleccionarla
+                    const option = new Option(
+                        resultado.descripcion,
+                        resultado.id,
+                        true,
+                        true
+                    );
+
+                    select.add(option);
+
+                    select.dispatchEvent(new Event('change', {
+                        bubbles: true
+                    }));
+
+                    // Limpiar formulario y cerrar modal
+                    form.reset();
+                    modal.hide();
+
+                    mostrarAlerta('success', 'Registro agregado correctamente.');
+
+                } catch (error) {
+
+                    mostrarAlerta('error', error.message);
+
+                } finally {
+
+                    boton.disabled = false;
+                    boton.innerHTML = '<i class="fas fa-save"></i> Guardar';
+
+                }
+
+            });
+
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
             const overlay = document.getElementById('overlay-spinner');
 
-            document.addEventListener('submit', function (e) {
+            document.addEventListener('submit', function(e) {
 
                 const offcanvasEl = document.getElementById('offcanvasAcciones');
 
@@ -235,12 +416,12 @@
             }
         });
 
-        (function () {
+        (function() {
             const overlay = document.getElementById('overlay-spinner');
             const originalFetch = window.fetch;
             let activeFetches = 0;
 
-            window.fetch = async function (input, options = {}) {
+            window.fetch = async function(input, options = {}) {
 
                 const showOverlay = options?.showOverlay !== false;
 
@@ -276,7 +457,7 @@
             // Limpiar clases anteriores
             [
                 'primary', 'dark', 'info', 'success', 'warning', 'danger'
-            ].forEach(function (c) {
+            ].forEach(function(c) {
                 parent.classList.remove('bg-gradient-' + c);
             });
 
@@ -284,20 +465,22 @@
             parent.classList.add('bg-gradient-' + color);
 
             // Marcar badge activo
-            document.querySelectorAll('.badge.filter').forEach(function (el) {
+            document.querySelectorAll('.badge.filter').forEach(function(el) {
                 el.classList.remove('active');
             });
             a.classList.add('active');
 
             // Guardar en backend
             fetch('/guardar-color-sidebar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({ color: color })
-            })
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        color: color
+                    })
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -316,7 +499,9 @@
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 },
-                body: JSON.stringify({ sidebar_type: selectedType }),
+                body: JSON.stringify({
+                    sidebar_type: selectedType
+                }),
             }).then(res => {
                 if (!res.ok) throw new Error('Error al guardar personalización');
                 return res.json();
@@ -327,11 +512,30 @@
             });
             for (
                 var t = e.parentElement.children, s = e.getAttribute("data-class"),
-                n = document.querySelector("body"),
-                a = document.querySelector("body:not(.dark-version)"),
-                n = n.classList.contains("dark-version"),
-                i = [], r = 0;
-                r < t.length; r++)t[r].classList.remove("active"), i.push(t[r].getAttribute("data-class")); e.classList.contains("active") ? e.classList.remove("active") : e.classList.add("active"); for (var l, o, c, d = document.querySelector(".sidenav"), r = 0; r < i.length; r++)d.classList.remove(i[r]); if (d.classList.add(s), "bg-transparent" == s || "bg-white" == s) { var u = document.querySelectorAll(".sidenav .text-white:not(.nav-link-text):not(.active)"); for (let e = 0; e < u.length; e++)u[e].classList.remove("text-white"), u[e].classList.add("text-dark") } else { var f = document.querySelectorAll(".sidenav .text-dark"); for (let e = 0; e < f.length; e++)f[e].classList.add("text-white"), f[e].classList.remove("text-dark") } if ("bg-transparent" == s && n) { f = document.querySelectorAll(".navbar-brand .text-dark"); for (let e = 0; e < f.length; e++)f[e].classList.add("text-white"), f[e].classList.remove("text-dark") } "bg-transparent" != s && "bg-white" != s || !a ? (o = (l = document.querySelector(".navbar-brand-img")).src).includes("logo-ct-dark.png") && (c = o.replace("logo-ct-dark", "logo-ct"), l.src = c) : (o = (l = document.querySelector(".navbar-brand-img")).src).includes("logo-ct.png") && (c = o.replace("logo-ct", "logo-ct-dark"), l.src = c), "bg-white" == s && n && (o = (l = document.querySelector(".navbar-brand-img")).src).includes("logo-ct.png") && (c = o.replace("logo-ct", "logo-ct-dark"), l.src = c)
+                    n = document.querySelector("body"),
+                    a = document.querySelector("body:not(.dark-version)"),
+                    n = n.classList.contains("dark-version"),
+                    i = [], r = 0; r < t.length; r++) t[r].classList.remove("active"), i.push(t[r].getAttribute(
+                "data-class"));
+            e.classList.contains("active") ? e.classList.remove("active") : e.classList.add("active");
+            for (var l, o, c, d = document.querySelector(".sidenav"), r = 0; r < i.length; r++) d.classList.remove(i[r]);
+            if (d.classList.add(s), "bg-transparent" == s || "bg-white" == s) {
+                var u = document.querySelectorAll(".sidenav .text-white:not(.nav-link-text):not(.active)");
+                for (let e = 0; e < u.length; e++) u[e].classList.remove("text-white"), u[e].classList.add("text-dark")
+            } else {
+                var f = document.querySelectorAll(".sidenav .text-dark");
+                for (let e = 0; e < f.length; e++) f[e].classList.add("text-white"), f[e].classList.remove("text-dark")
+            }
+            if ("bg-transparent" == s && n) {
+                f = document.querySelectorAll(".navbar-brand .text-dark");
+                for (let e = 0; e < f.length; e++) f[e].classList.add("text-white"), f[e].classList.remove("text-dark")
+            }
+            "bg-transparent" != s && "bg-white" != s || !a ? (o = (l = document.querySelector(".navbar-brand-img")).src)
+                .includes("logo-ct-dark.png") && (c = o.replace("logo-ct-dark", "logo-ct"), l.src = c) : (o = (l = document
+                    .querySelector(".navbar-brand-img")).src).includes("logo-ct.png") && (c = o.replace("logo-ct",
+                    "logo-ct-dark"), l.src = c), "bg-white" == s && n && (o = (l = document.querySelector(
+                    ".navbar-brand-img")).src).includes("logo-ct.png") && (c = o.replace("logo-ct", "logo-ct-dark"), l.src =
+                    c)
 
 
 
@@ -345,8 +549,7 @@
             var check;
             if (el.checked) {
                 check = 1;
-            }
-            else {
+            } else {
 
                 check = 0;
             }
@@ -374,7 +577,8 @@
             const bg_gray_100 = document.querySelectorAll('.bg-gray-100');
             const bg_gray_600 = document.querySelectorAll('.bg-gray-600');
             const btn_text_dark = document.querySelectorAll('.btn.btn-link.text-dark, .material-symbols-rounded.text-dark');
-            const btn_text_white = document.querySelectorAll('.btn.btn-link.text-white, .material-symbols-rounded.text-white');
+            const btn_text_white = document.querySelectorAll(
+                '.btn.btn-link.text-white, .material-symbols-rounded.text-white');
             const card_border = document.querySelectorAll('.card.border');
             const card_border_dark = document.querySelectorAll('.card.border.border-dark');
 
@@ -466,7 +670,8 @@
                     }
                 }
                 for (var i = 0; i < text_span_white.length; i++) {
-                    if (text_span_white[i].classList.contains('text-white') && !text_span_white[i].closest('.sidenav') && !text_span_white[i].closest('.card.bg-gradient-dark')) {
+                    if (text_span_white[i].classList.contains('text-white') && !text_span_white[i].closest('.sidenav') && !
+                        text_span_white[i].closest('.card.bg-gradient-dark')) {
                         text_span_white[i].classList.remove('text-white');
                         text_span_white[i].classList.add('text-dark');
                     }
@@ -478,7 +683,8 @@
                     }
                 }
                 for (var i = 0; i < text_nav_link_white.length; i++) {
-                    if (text_nav_link_white[i].classList.contains('text-white') && !text_nav_link_white[i].closest('.sidenav')) {
+                    if (text_nav_link_white[i].classList.contains('text-white') && !text_nav_link_white[i].closest(
+                            '.sidenav')) {
                         text_nav_link_white[i].classList.remove('text-white');
                         text_nav_link_white[i].classList.add('text-dark');
                     }
@@ -515,7 +721,6 @@
 
             }
         };
-
     </script>
 
 
@@ -523,20 +728,19 @@
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
     <!--   Core JS Files   -->
     <script src="{{ asset('argon/js/core/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{asset('argon/js/plugins/perfect-scrollbar.min.js')}}"></script>
-    <script src="{{asset('argon/js/plugins/smooth-scrollbar.min.js')}}"></script>
-    <script src="{{asset('argon/js/plugins/chartjs.min.js')}}"></script>
-    <script src="{{asset('js/alertas.js')}}"></script>
-    <script src="{{asset('js/export.js')}}"></script>
+    <script src="{{ asset('argon/js/plugins/perfect-scrollbar.min.js') }}"></script>
+    <script src="{{ asset('argon/js/plugins/smooth-scrollbar.min.js') }}"></script>
+    <script src="{{ asset('argon/js/plugins/chartjs.min.js') }}"></script>
+    <script src="{{ asset('js/alertas.js') }}"></script>
+    <script src="{{ asset('js/export.js') }}"></script>
 
-    <script src="{{asset('js/campos.js')}}"></script>
-    <script src="{{asset('js/iconos.js')}}"></script>
-    <script src="{{asset('js/offcanvas.js')}}"></script>
+    <script src="{{ asset('js/campos.js') }}"></script>
+    <script src="{{ asset('js/iconos.js') }}"></script>
+    <script src="{{ asset('js/offcanvas.js') }}"></script>
 
 
 
     <script>
-
         alertify.defaults.theme.ok = "btn btn-danger";
         alertify.defaults.theme.cancel = "btn btn-secondary";
         alertify.defaults.theme.input = "form-control";
@@ -551,7 +755,7 @@
             alertify.confirm(
                 'Confirmar acción',
                 mensaje,
-                function () {
+                function() {
 
                     if (callback) {
                         callback();
@@ -560,10 +764,13 @@
 
                     document.getElementById(formId).submit();
                 },
-                function () {
+                function() {
                     alertify.error('Acción cancelada');
                 }
-            ).set('labels', { ok: 'Aceptar', cancel: 'Cancelar' });
+            ).set('labels', {
+                ok: 'Aceptar',
+                cancel: 'Cancelar'
+            });
         }
 
         var win = navigator.platform.indexOf('Win') > -1;
@@ -573,8 +780,6 @@
             }
             Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
         }
-
-
     </script>
 
 
@@ -588,7 +793,7 @@
         }
     </script>
 
-    <script src="{{asset('argon/js/argon-dashboard.js?v=2.1.0')}}"></script>
+    <script src="{{ asset('argon/js/argon-dashboard.js?v=2.1.0') }}"></script>
 
 </body>
 

@@ -9,7 +9,8 @@
 
                     @include('ventas.partials.alertas')
 
-                    <form method="POST" action="{{ route('productos.store') }}" autocomplete="off">
+                    <form method="POST" action="{{ route('productos.store') }}" enctype="multipart/form-data"
+                        autocomplete="off">
                         @csrf
                         @include('ventas.productos._form')
 
