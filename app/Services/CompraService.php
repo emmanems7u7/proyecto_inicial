@@ -13,6 +13,7 @@ use App\Models\DevolucionCompraDetalle;
 use App\Models\Lote;
 use App\Models\OrdenCompra;
 use App\Models\Producto;
+use App\Models\ProductoPresentacion;
 use App\Models\Proveedor;
 use App\Models\Tienda;
 use App\Models\User;
@@ -38,11 +39,11 @@ class CompraService
     {
         return DB::transaction(function () use ($tienda, $d, $user) {
             $almacen = Almacen::where('tienda_id', $tienda->id)->where('estado', 1)->find($d['almacen_id'] ?? 0);
-            if (! $almacen) {
+            if (!$almacen) {
                 throw new OperacionException('Selecciona un almacén válido de la tienda activa.');
             }
             $proveedor = Proveedor::where('empresa_id', $tienda->empresa_id)->find($d['proveedor_id'] ?? 0);
-            if (! $proveedor) {
+            if (!$proveedor) {
                 throw new OperacionException('Selecciona un proveedor.');
             }
 
@@ -58,22 +59,22 @@ class CompraService
             }
 
             $credito = ($d['tipo_pago'] ?? 'contado') === 'credito';
-            $metodoId = ! empty($d['metodo_pago_id']) ? (int) $d['metodo_pago_id'] : null;
+            $metodoId = !empty($d['metodo_pago_id']) ? (int) $d['metodo_pago_id'] : null;
             $sesion = null;
-            if (! $credito && ! empty($d['pagar_caja'])) {
-                if (! $metodoId) {
+            if (!$credito && !empty($d['pagar_caja'])) {
+                if (!$metodoId) {
                     throw new OperacionException('Selecciona el método de pago.');
                 }
                 $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $tienda->id);
-                if (! $sesion) {
+                if (!$sesion) {
                     throw new OperacionException('Debes abrir una caja para registrar el egreso de esta compra.');
                 }
             }
 
             $orden = null;
-            if (! empty($d['orden_compra_id'])) {
+            if (!empty($d['orden_compra_id'])) {
                 $orden = OrdenCompra::where('tienda_id', $tienda->id)->lockForUpdate()->find($d['orden_compra_id']);
-                if (! $orden || in_array($orden->estado, ['recibida', 'anulada'])) {
+                if (!$orden || in_array($orden->estado, ['recibida', 'anulada'])) {
                     throw new OperacionException('La orden de compra no está disponible para recepción.');
                 }
             }
@@ -119,7 +120,22 @@ class CompraService
                     'costo_unitario' => $l['costo'],
                     'descuento' => $l['descuento'],
                     'subtotal' => $l['subtotal'],
+                    'presentacion_id' => $l['presentacion_id'] ?? null,
+                    'presentacion_nombre' => $l['presentacion_nombre'] ?? null,
+                    'factor' => $l['factor'] ?? 1,
                 ]);
+            }
+
+            // Opcional: dejar el nuevo costo en el catálogo (presentación comprada, base y costo del producto).
+            if (!empty($d['actualizar_costo'])) {
+                foreach ($lineas as $l) {
+                    $costoBase = round($l['costo'], 2);
+                    $l['producto']->update(['precio_compra' => $costoBase]);
+                    ProductoPresentacion::where('producto_id', $l['producto']->id)->where('es_base', true)->update(['precio_costo' => $costoBase]);
+                    if (!empty($l['presentacion_id'])) {
+                        ProductoPresentacion::where('id', $l['presentacion_id'])->update(['precio_costo' => $l['costo_pres']]);
+                    }
+                }
             }
 
             if ($credito) {
@@ -135,8 +151,14 @@ class CompraService
                 $this->aplicarARecibido($orden, $this->sumarPorProducto($lineas), 1);
             }
 
-            AuditoriaService::registrar('compras', 'crear', $compra, null,
-                ['numero' => $compra->numero, 'total' => $total, 'tipo_pago' => $compra->tipo_pago], $tienda->id);
+            AuditoriaService::registrar(
+                'compras',
+                'crear',
+                $compra,
+                null,
+                ['numero' => $compra->numero, 'total' => $total, 'tipo_pago' => $compra->tipo_pago],
+                $tienda->id
+            );
 
             return $compra->refresh();
         });
@@ -175,14 +197,14 @@ class CompraService
                 ->where('referencia_id', $c->id)->where('tipo', 'egreso')->first();
             if ($egreso) {
                 $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $c->tienda_id);
-                if (! $sesion) {
+                if (!$sesion) {
                     throw new OperacionException('Abre una caja para registrar el reintegro del dinero pagado en esta compra.');
                 }
                 $this->caja->registrarMovimiento($sesion, 'ingreso', "Anulación compra {$c->numero}", (float) $egreso->monto, $egreso->metodo_pago_id, $c, $user->id);
             }
 
             if ($c->orden_compra_id && ($orden = OrdenCompra::lockForUpdate()->find($c->orden_compra_id))) {
-                $this->aplicarARecibido($orden, $c->detalles->groupBy('producto_id')->map(fn ($g) => (float) $g->sum('cantidad'))->all(), -1);
+                $this->aplicarARecibido($orden, $c->detalles->groupBy('producto_id')->map(fn($g) => (float) $g->sum('cantidad'))->all(), -1);
             }
 
             $c->update(['estado' => 'anulada', 'saldo' => 0]);
@@ -196,11 +218,11 @@ class CompraService
     /** @return Collection<int, object> */
     public function pendientesDevolucion(Compra $compra): Collection
     {
-        $clave = fn ($d) => $d->producto_id . '-' . ($d->lote_id ?? 0);
+        $clave = fn($d) => $d->producto_id . '-' . ($d->lote_id ?? 0);
 
         $comprados = $compra->detalles()->with(['producto', 'lote'])->get()->groupBy($clave);
-        $devueltos = DevolucionCompraDetalle::whereHas('devolucion', fn ($q) => $q->where('compra_id', $compra->id)->where('estado', 'completada'))
-            ->get()->groupBy($clave)->map(fn ($g) => (float) $g->sum('cantidad'));
+        $devueltos = DevolucionCompraDetalle::whereHas('devolucion', fn($q) => $q->where('compra_id', $compra->id)->where('estado', 'completada'))
+            ->get()->groupBy($clave)->map(fn($g) => (float) $g->sum('cantidad'));
 
         return $comprados->map(function ($g, $k) use ($devueltos) {
             $primero = $g->first();
@@ -237,7 +259,7 @@ class CompraService
                     continue;
                 }
                 $p = $pendientes->get($clave);
-                if (! $p) {
+                if (!$p) {
                     throw new OperacionException('Hay un producto que no pertenece a la compra.');
                 }
                 if ($cantidad > $p->disponible + 0.0005) {
@@ -245,7 +267,7 @@ class CompraService
                 }
                 $items[] = [$p, $cantidad];
             }
-            if (! $items) {
+            if (!$items) {
                 throw new OperacionException('Indica al menos una cantidad a devolver.');
             }
 
@@ -310,7 +332,7 @@ class CompraService
             if ($reintegro > 0 && CajaMovimientoExiste::paraCompra($c)) {
                 $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $c->tienda_id);
                 $efectivo = $this->caja->metodoEfectivoId();
-                if (! $sesion || ! $efectivo) {
+                if (!$sesion || !$efectivo) {
                     throw new OperacionException('Abre una caja para registrar el reintegro de Bs ' . Formato::dinero($reintegro) . '.');
                 }
                 $this->caja->registrarMovimiento($sesion, 'ingreso', "Devolución {$dev->numero} (compra {$c->numero})", $reintegro, $efectivo, $dev, $user->id);
@@ -331,16 +353,20 @@ class CompraService
         $lineas = [];
         foreach ($items as $i) {
             $p = $productos->get($i['producto_id'] ?? 0);
-            if (! $p) {
+            if (!$p) {
                 throw new OperacionException('Hay un producto inválido o inactivo en el detalle.');
             }
-            $cantidad = round((float) ($i['cantidad'] ?? 0), 3);
-            $costo = round((float) ($i['costo_unitario'] ?? 0), 2);
+            // Con presentación (factor): cantidad y costo llegan por presentación; el stock se maneja en unidades base.
+            $factor = isset($i['factor']) ? max((float) $i['factor'], 0.001) : 1.0;
+            $cantPres = round((float) ($i['cantidad'] ?? 0), 3);
+            $cantidad = round($cantPres * $factor, 3);
+            $costoPres = round((float) ($i['costo_unitario'] ?? 0), 2);
+            $costo = isset($i['factor']) ? round($costoPres / $factor, 6) : $costoPres;
             $descuento = round((float) ($i['descuento'] ?? 0), 2);
             if ($cantidad <= 0) {
                 throw new OperacionException("La cantidad de «{$p->nombre}» debe ser mayor a cero.");
             }
-            $bruto = round($cantidad * $costo, 2);
+            $bruto = round($cantPres * $costoPres, 2);
             if ($descuento > $bruto) {
                 throw new OperacionException("El descuento de «{$p->nombre}» supera su importe.");
             }
@@ -352,10 +378,14 @@ class CompraService
                 'subtotal' => round($bruto - $descuento, 2),
                 'numero_lote' => ($i['numero_lote'] ?? null) ?: null,
                 'fecha_vencimiento' => ($i['fecha_vencimiento'] ?? null) ?: null,
+                'presentacion_id' => $i['presentacion_id'] ?? null,
+                'presentacion_nombre' => $i['presentacion_nombre'] ?? null,
+                'factor' => $factor,
+                'costo_pres' => $costoPres,
             ];
         }
 
-        if (! $lineas) {
+        if (!$lineas) {
             throw new OperacionException('Agrega al menos un producto.');
         }
 
@@ -390,8 +420,8 @@ class CompraService
         }
 
         $detalles = $orden->detalles()->get();
-        $completo = $detalles->every(fn ($x) => $x->cantidad_recibida + 0.0005 >= $x->cantidad);
-        $algo = $detalles->contains(fn ($x) => $x->cantidad_recibida > 0);
+        $completo = $detalles->every(fn($x) => $x->cantidad_recibida + 0.0005 >= $x->cantidad);
+        $algo = $detalles->contains(fn($x) => $x->cantidad_recibida > 0);
 
         $orden->update(['estado' => $completo ? 'recibida' : ($algo ? 'parcial' : 'pendiente')]);
     }

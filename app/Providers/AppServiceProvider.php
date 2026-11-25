@@ -27,6 +27,8 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\Seccion;
 use App\Models\Configuracion;
 use App\Models\ConfiguracionCredenciales;
+use App\Support\CorreoConfig;
+use Illuminate\Support\Facades\Queue;
 
 
 class AppServiceProvider extends ServiceProvider
@@ -52,6 +54,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+
+        CorreoConfig::aplicar();                          
+    Queue::before(fn () => CorreoConfig::aplicar()); 
+
         $agent = new Agent();
 
         // Mobile

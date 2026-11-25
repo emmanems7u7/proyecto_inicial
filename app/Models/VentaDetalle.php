@@ -15,7 +15,17 @@ class VentaDetalle extends Model
     protected $table = 'venta_detalles';
 
     protected $fillable = [
-        'venta_id', 'producto_id', 'lote_id', 'cantidad', 'precio_unitario', 'costo_unitario', 'descuento', 'subtotal',
+        'venta_id',
+        'producto_id',
+        'lote_id',
+        'cantidad',
+        'precio_unitario',
+        'costo_unitario',
+        'descuento',
+        'subtotal',
+        'presentacion_id',
+        'presentacion_nombre',
+        'factor',
     ];
 
     protected $casts = [

@@ -51,7 +51,7 @@
                     <tbody>
                         @foreach ($compra->detalles as $d)
                             <tr>
-                                <td>{{ $d->producto->codigo }} - {{ $d->producto->nombre }}</td>
+                                <td>{{ $d->producto->codigo }} - {{ $d->producto->nombre }}@if ($d->presentacion_nombre)<br><small class="text-muted">{{ $d->presentacion_nombre }} × {{ \App\Support\Formato::cantidad($d->cantidad / max((float) $d->factor, 1)) }}</small>@endif</td>
                                 <td>{{ $d->numero_lote ?: '—' }}</td>
                                 <td>{{ $d->fecha_vencimiento?->format('d/m/Y') ?? '—' }}</td>
                                 <td class="text-end">{{ \App\Support\Formato::cantidad($d->cantidad) }}</td>

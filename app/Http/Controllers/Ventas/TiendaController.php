@@ -23,7 +23,7 @@ class TiendaController extends Controller
         $tiendas = Tienda::with('ciudad')
             ->withCount(['almacenes', 'usuarios'])
             ->where('empresa_id', $this->empresaId())
-            ->when($q !== '', fn ($query) => $query->where(function ($w) use ($q) {
+            ->when($q !== '', fn($query) => $query->where(function ($w) use ($q) {
                 $w->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%");
             }))
             ->orderByDesc('es_matriz')
@@ -39,6 +39,7 @@ class TiendaController extends Controller
     public function create()
     {
         $tienda = new Tienda(['estado' => 1]);
+        $tienda->codigo = $this->codigoSugerido();
         $ciudades = Catalogos::ciudades();
         $breadcrumb = $this->breadcrumb(['Tiendas' => route('tiendas.index'), 'Nueva' => null]);
 
@@ -50,11 +51,10 @@ class TiendaController extends Controller
         $data = $this->validar($request);
         $empresaId = $this->empresaId();
 
-        DB::transaction(function () use ($data, $empresaId) {
+        $tienda = DB::transaction(function () use ($data, $empresaId) {
             if ($data['es_matriz']) {
                 Tienda::where('empresa_id', $empresaId)->update(['es_matriz' => false]);
             }
-
             $tienda = Tienda::create($data + ['empresa_id' => $empresaId]);
 
             // Toda tienda nace con su almacén principal.
@@ -65,9 +65,22 @@ class TiendaController extends Controller
                 'es_principal' => true,
                 'estado' => 1,
             ]);
+
+            return $tienda;
         });
 
-        return redirect()->route('tiendas.index')->with('success', 'Tienda creada con su almacén principal.');
+        // Continúa con los pasos para dejar la tienda lista (administrador, caja, stock).
+        return redirect()->route('tiendas.configuracion', $tienda)->with('success', 'Tienda creada con su almacén principal. Completa los pasos para dejarla lista.');
+    }
+
+    private function codigoSugerido(): string
+    {
+        $n = Tienda::withTrashed()->where('empresa_id', $this->empresaId())->count() + 1;
+        do {
+            $codigo = sprintf('TDA-%02d', $n++);
+        } while (Tienda::withTrashed()->where('empresa_id', $this->empresaId())->where('codigo', $codigo)->exists());
+
+        return $codigo;
     }
 
     public function edit(Tienda $tienda)
@@ -117,14 +130,21 @@ class TiendaController extends Controller
     private function validar(Request $request, ?Tienda $tienda = null): array
     {
         $data = $request->validate([
-            'codigo' => ['required', 'string', 'max:20',
-                Rule::unique('tiendas', 'codigo')->where('empresa_id', $this->empresaId())->ignore($tienda?->id)],
+            'codigo' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('tiendas', 'codigo')->where('empresa_id', $this->empresaId())->ignore($tienda?->id)
+            ],
             'nombre' => ['required', 'string', 'max:120'],
             'direccion' => ['nullable', 'string', 'max:255'],
             'telefono' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
             'ciudad_id' => ['nullable', 'exists:catalogos,id'],
             'estado' => ['required', 'in:0,1'],
+            'rubro' => ['nullable', 'string', 'max:80'],
+            'prefijo_comprobante' => ['nullable', 'string', 'max:10'],
+            'pie_ticket' => ['nullable', 'string', 'max:255'],
         ]);
         $data['es_matriz'] = $request->boolean('es_matriz');
 

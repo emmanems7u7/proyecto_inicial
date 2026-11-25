@@ -21,6 +21,8 @@ class Producto extends Model
         'nombre',
         'descripcion',
         'imagen',
+        'marca',
+        'stock_minimo',
         'precio_compra',
         'precio_venta',
         'maneja_lotes',
@@ -43,6 +45,11 @@ class Producto extends Model
     public function unidad(): BelongsTo
     {
         return $this->belongsTo(Catalogo::class, 'unidad_medida_id');
+    }
+
+    public function presentaciones(): HasMany
+    {
+        return $this->hasMany(ProductoPresentacion::class)->orderBy('unidades');
     }
 
     public function inventarios(): HasMany

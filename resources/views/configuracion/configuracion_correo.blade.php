@@ -109,7 +109,7 @@
         function enviarPrueba() {
             const url = "{{ route('correo.prueba') }}";
             const loader = document.getElementById('loader');
-            loader.style.display = '';
+           
 
             fetch(url)
                 .then(response => {

@@ -10,7 +10,7 @@ class Cliente extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['empresa_id', 'tipo_documento_id', 'numero_documento', 'complemento', 'nombre', 'email', 'telefono', 'direccion', 'ciudad_id', 'limite_credito', 'dias_credito', 'observaciones', 'estado'];
+    protected $fillable = ['empresa_id', 'tipo_documento_id', 'numero_documento', 'complemento', 'nombre', 'email', 'telefono', 'direccion', 'ciudad_id', 'limite_credito', 'dias_credito', 'lista_precio', 'observaciones', 'estado'];
 
     protected $casts = ['limite_credito' => 'float'];
 

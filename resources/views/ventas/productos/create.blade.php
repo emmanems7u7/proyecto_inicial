@@ -1,27 +1,17 @@
 @extends('layouts.argon')
 
 @section('content')
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="card shadow-lg">
-                <div class="card-body">
-                    <h5>Nuevo producto</h5>
-
-                    @include('ventas.partials.alertas')
-
-                    <form method="POST" action="{{ route('productos.store') }}" enctype="multipart/form-data"
-                        autocomplete="off">
-                        @csrf
-                        @include('ventas.productos._form')
-
-                        <div class="d-flex gap-2">
-                            <a href="{{ route('productos.index') }}" class="btn btn-sm btn-secondary">Cancelar</a>
-                            <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-save"></i>
-                                Guardar</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="fas fa-box-open me-2 text-primary"></i>Nuevo producto</h5>
+            <a href="{{ route('productos.index') }}" class="btn btn-sm btn-secondary mb-0"><i class="fas fa-arrow-left me-1"></i>Volver</a>
         </div>
+        @include('ventas.partials.alertas')
+        @include('ventas.productos._form', [
+            'accion' => route('productos.store'), 'metodo' => 'POST',
+            'cancelar' => route('productos.index'), 'conOtro' => true,
+        ])
     </div>
+</div>
 @endsection

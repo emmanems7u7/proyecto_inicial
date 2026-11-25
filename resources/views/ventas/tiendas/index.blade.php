@@ -1,6 +1,7 @@
 @extends('layouts.argon')
 
 @section('content')
+
     @include('ventas.partials.tabla_estilos')
 
     <div class="row">
@@ -80,6 +81,11 @@
                                         </td>
                                         <td class="text-end text-nowrap">
                                             @can('tiendas.usuarios')
+                                                @can('tiendas.editar')
+                                                    <a href="{{ route('tiendas.configuracion', $tienda) }}"
+                                                        class="btn btn-xs btn-success mb-0 px-2 py-1"
+                                                        title="Configuración y pasos"><i class="fas fa-tasks"></i></a>
+                                                @endcan
                                                 <a href="{{ route('tiendas.usuarios.edit', $tienda) }}"
                                                     class="btn btn-xs btn-info mb-0 px-2 py-1" title="Usuarios de la tienda"><i
                                                         class="fas fa-users"></i></a>
@@ -109,11 +115,11 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="d-flex justify-content-center">
-                        {{ $tiendas->links('pagination::bootstrap-4') }}
-                    </div>
+
+                    <div class="mt-2">{{ $tiendas->links() }}</div>
                 </div>
             </div>
         </div>
     </div>
+
 @endsection

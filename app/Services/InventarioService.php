@@ -50,7 +50,7 @@ class InventarioService
 
             Inventario::firstOrCreate(
                 ['almacen_id' => $almacenId, 'producto_id' => $productoId],
-                ['cantidad' => 0, 'stock_minimo' => 0]
+                ['cantidad' => 0, 'stock_minimo' => (float) ($producto->stock_minimo ?? 0)]
             );
             $inventario = Inventario::where('almacen_id', $almacenId)
                 ->where('producto_id', $productoId)
@@ -83,7 +83,7 @@ class InventarioService
             if ($lote) {
                 $lote->cantidad_actual = round($lote->cantidad_actual + $cantidad, 3);
                 $lote->cantidad_inicial = round($lote->cantidad_inicial + $cantidad, 3);
-                if (! $lote->fecha_vencimiento && ! empty($opts['fecha_vencimiento'])) {
+                if (!$lote->fecha_vencimiento && !empty($opts['fecha_vencimiento'])) {
                     $lote->fecha_vencimiento = $opts['fecha_vencimiento'];
                 }
                 $lote->estado = 1;
@@ -124,7 +124,7 @@ class InventarioService
 
         $movimientos = collect();
 
-        if (! $producto->maneja_lotes) {
+        if (!$producto->maneja_lotes) {
             $nuevo = round($saldo - $cantidad, 3);
             $movimientos->push($this->kardex($tipo, $almacen, $producto, null, -$cantidad, $saldo, $nuevo, $opts));
             $saldo = $nuevo;
@@ -134,11 +134,11 @@ class InventarioService
                 ->where('cantidad_actual', '>', 0)
                 ->lockForUpdate();
 
-            if (! empty($opts['lote_id'])) {
+            if (!empty($opts['lote_id'])) {
                 $consulta->where('id', $opts['lote_id']);
             } elseif (empty($opts['incluir_vencidos'])) {
                 $hoy = today()->toDateString();
-                $consulta->where(fn ($q) => $q->whereNull('fecha_vencimiento')->orWhereDate('fecha_vencimiento', '>=', $hoy));
+                $consulta->where(fn($q) => $q->whereNull('fecha_vencimiento')->orWhereDate('fecha_vencimiento', '>=', $hoy));
             }
 
             // FEFO: primero los que vencen antes; los sin vencimiento al final.

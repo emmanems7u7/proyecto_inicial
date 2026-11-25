@@ -38,7 +38,7 @@ class VentaService
     {
         $venta = DB::transaction(function () use ($tienda, $d, $user) {
             $almacen = Almacen::where('tienda_id', $tienda->id)->where('estado', 1)->find($d['almacen_id'] ?? 0);
-            if (! $almacen) {
+            if (!$almacen) {
                 throw new OperacionException('Selecciona un almacén válido de la tienda activa.');
             }
 
@@ -53,12 +53,12 @@ class VentaService
                 throw new OperacionException('El total de la venta debe ser mayor a cero.');
             }
 
-            $pedido = ! empty($d['como_pedido']);
+            $pedido = !empty($d['como_pedido']);
 
             $venta = Venta::create([
                 'tienda_id' => $tienda->id,
                 'almacen_id' => $almacen->id,
-                'cliente_id' => ! empty($d['cliente_id']) ? $d['cliente_id'] : null,
+                'cliente_id' => !empty($d['cliente_id']) ? $d['cliente_id'] : null,
                 'vendedor_id' => $user->id,
                 'cotizacion_id' => $d['cotizacion_id'] ?? null,
                 'numero' => $this->secuencias->siguiente($tienda->id, 'venta', 'V'),
@@ -79,12 +79,18 @@ class VentaService
                 $this->completar($venta, $lineas, $d, $user);
             }
 
-            if (! empty($d['cotizacion_id'])) {
+            if (!empty($d['cotizacion_id'])) {
                 Cotizacion::where('id', $d['cotizacion_id'])->where('tienda_id', $tienda->id)->update(['estado' => 'convertida']);
             }
 
-            AuditoriaService::registrar('ventas', $pedido ? 'crear_pedido' : 'crear', $venta, null,
-                ['numero' => $venta->numero, 'total' => $total, 'tipo_pago' => $venta->tipo_pago], $tienda->id);
+            AuditoriaService::registrar(
+                'ventas',
+                $pedido ? 'crear_pedido' : 'crear',
+                $venta,
+                null,
+                ['numero' => $venta->numero, 'total' => $total, 'tipo_pago' => $venta->tipo_pago],
+                $tienda->id
+            );
 
             return $venta->refresh();
         });
@@ -105,12 +111,15 @@ class VentaService
                 throw new OperacionException('Solo los pedidos pueden confirmarse.');
             }
 
-            $lineas = $v->detalles->map(fn ($x) => [
+            $lineas = $v->detalles->map(fn($x) => [
                 'producto' => Producto::findOrFail($x->producto_id),
                 'cantidad' => (float) $x->cantidad,
                 'precio' => (float) $x->precio_unitario,
                 'descuento' => (float) $x->descuento,
                 'subtotal' => (float) $x->subtotal,
+                'presentacion_id' => $x->presentacion_id,
+                'presentacion_nombre' => $x->presentacion_nombre,
+                'factor' => (float) ($x->factor ?: 1),
             ])->all();
 
             $v->update(['tipo_pago' => $d['tipo_pago'] ?? 'contado', 'estado' => 'completada', 'fecha' => now()]);
@@ -147,7 +156,7 @@ class VentaService
                 if ($reembolso > 0) {
                     $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $v->tienda_id);
                     $efectivo = $this->caja->metodoEfectivoId();
-                    if (! $sesion || ! $efectivo) {
+                    if (!$sesion || !$efectivo) {
                         throw new OperacionException('Abre una caja para registrar la devolución del dinero cobrado (Bs ' . Formato::dinero($reembolso) . ').');
                     }
                     $this->caja->registrarMovimiento($sesion, 'egreso', "Anulación venta {$v->numero}", $reembolso, $efectivo, $v, $user->id);
@@ -177,14 +186,14 @@ class VentaService
      */
     public function pendientesDevolucion(Venta $venta): Collection
     {
-        $clave = fn ($d) => $d->producto_id . '-' . ($d->lote_id ?? 0);
+        $clave = fn($d) => $d->producto_id . '-' . ($d->lote_id ?? 0);
 
         $vendidos = $venta->detalles()->with(['producto', 'lote'])->get()->groupBy($clave);
 
-        $devueltos = DevolucionVentaDetalle::whereHas('devolucion', fn ($q) => $q->where('venta_id', $venta->id)->where('estado', 'completada'))
+        $devueltos = DevolucionVentaDetalle::whereHas('devolucion', fn($q) => $q->where('venta_id', $venta->id)->where('estado', 'completada'))
             ->get()
             ->groupBy($clave)
-            ->map(fn ($g) => (float) $g->sum('cantidad'));
+            ->map(fn($g) => (float) $g->sum('cantidad'));
 
         return $vendidos->map(function ($g, $k) use ($devueltos) {
             $primero = $g->first();
@@ -222,7 +231,7 @@ class VentaService
                     continue;
                 }
                 $p = $pendientes->get($clave);
-                if (! $p) {
+                if (!$p) {
                     throw new OperacionException('Hay un producto que no pertenece a la venta.');
                 }
                 if ($cantidad > $p->disponible + 0.0005) {
@@ -230,7 +239,7 @@ class VentaService
                 }
                 $items[] = [$p, $cantidad];
             }
-            if (! $items) {
+            if (!$items) {
                 throw new OperacionException('Indica al menos una cantidad a devolver.');
             }
 
@@ -291,7 +300,7 @@ class VentaService
             if ($reembolso > 0) {
                 $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $v->tienda_id);
                 $efectivo = $this->caja->metodoEfectivoId();
-                if (! $sesion || ! $efectivo) {
+                if (!$sesion || !$efectivo) {
                     throw new OperacionException('Abre una caja para registrar el reembolso de Bs ' . Formato::dinero($reembolso) . '.');
                 }
                 $this->caja->registrarMovimiento($sesion, 'egreso', "Devolución {$dev->numero} (venta {$v->numero})", $reembolso, $efectivo, $dev, $user->id);
@@ -314,23 +323,36 @@ class VentaService
         $lineas = [];
         foreach ($items as $i) {
             $p = $productos->get($i['producto_id'] ?? 0);
-            if (! $p) {
+            if (!$p) {
                 throw new OperacionException('Hay un producto inválido o inactivo en el detalle.');
             }
-            $cantidad = round((float) ($i['cantidad'] ?? 0), 3);
-            $precio = round((float) ($i['precio_unitario'] ?? 0), 2);
+            // Con presentación (factor): cantidad y precio llegan por presentación; el stock se maneja en unidades base.
+            $factor = isset($i['factor']) ? max((float) $i['factor'], 0.001) : 1.0;
+            $cantPres = round((float) ($i['cantidad'] ?? 0), 3);
+            $cantidad = round($cantPres * $factor, 3);
+            $precioPres = round((float) ($i['precio_unitario'] ?? 0), 2);
+            $precio = isset($i['factor']) ? round($precioPres / $factor, 6) : $precioPres;
             $descuento = round((float) ($i['descuento'] ?? 0), 2);
             if ($cantidad <= 0) {
                 throw new OperacionException("La cantidad de «{$p->nombre}» debe ser mayor a cero.");
             }
-            $bruto = round($cantidad * $precio, 2);
+            $bruto = round($cantPres * $precioPres, 2);
             if ($descuento > $bruto) {
                 throw new OperacionException("El descuento de «{$p->nombre}» supera su importe.");
             }
-            $lineas[] = ['producto' => $p, 'cantidad' => $cantidad, 'precio' => $precio, 'descuento' => $descuento, 'subtotal' => round($bruto - $descuento, 2)];
+            $lineas[] = [
+                'producto' => $p,
+                'cantidad' => $cantidad,
+                'precio' => $precio,
+                'descuento' => $descuento,
+                'subtotal' => round($bruto - $descuento, 2),
+                'presentacion_id' => $i['presentacion_id'] ?? null,
+                'presentacion_nombre' => $i['presentacion_nombre'] ?? null,
+                'factor' => $factor,
+            ];
         }
 
-        if (! $lineas) {
+        if (!$lineas) {
             throw new OperacionException('Agrega al menos un producto.');
         }
 
@@ -349,6 +371,9 @@ class VentaService
                 'costo_unitario' => $l['producto']->precio_compra,
                 'descuento' => $l['descuento'],
                 'subtotal' => $l['subtotal'],
+                'presentacion_id' => $l['presentacion_id'] ?? null,
+                'presentacion_nombre' => $l['presentacion_nombre'] ?? null,
+                'factor' => $l['factor'] ?? 1,
             ]);
         }
     }
@@ -382,6 +407,9 @@ class VentaService
                     'costo_unitario' => $m->costo_unitario,
                     'descuento' => $descuento,
                     'subtotal' => round($cantidad * $l['precio'] - $descuento, 2),
+                    'presentacion_id' => $l['presentacion_id'] ?? null,
+                    'presentacion_nombre' => $l['presentacion_nombre'] ?? null,
+                    'factor' => $l['factor'] ?? 1,
                 ]);
             }
         }
@@ -390,7 +418,7 @@ class VentaService
     private function completar(Venta $venta, array $lineas, array $d, User $user): void
     {
         $credito = $venta->tipo_pago === 'credito';
-        $metodoId = ! empty($d['metodo_pago_id']) ? (int) $d['metodo_pago_id'] : null;
+        $metodoId = !empty($d['metodo_pago_id']) ? (int) $d['metodo_pago_id'] : null;
         $anticipo = $credito ? round((float) ($d['anticipo'] ?? 0), 2) : (float) $venta->total;
         $cliente = null;
 
@@ -398,7 +426,7 @@ class VentaService
             $cliente = $venta->cliente_id
                 ? Cliente::where('empresa_id', $venta->tienda->empresa_id)->find($venta->cliente_id)
                 : null;
-            if (! $cliente) {
+            if (!$cliente) {
                 throw new OperacionException('La venta a crédito requiere seleccionar un cliente.');
             }
             if ($cliente->limite_credito <= 0) {
@@ -413,25 +441,27 @@ class VentaService
             if ($pendiente + $nuevo > $cliente->limite_credito + 0.005) {
                 throw new OperacionException(sprintf(
                     'Supera el límite de crédito del cliente (límite Bs %s, deuda actual Bs %s, esta venta Bs %s).',
-                    Formato::dinero($cliente->limite_credito), Formato::dinero($pendiente), Formato::dinero($nuevo)
+                    Formato::dinero($cliente->limite_credito),
+                    Formato::dinero($pendiente),
+                    Formato::dinero($nuevo)
                 ));
             }
         }
 
         $sesion = null;
         if ($anticipo > 0) {
-            if (! $metodoId) {
+            if (!$metodoId) {
                 throw new OperacionException('Selecciona el método de pago.');
             }
             $sesion = $this->caja->sesionAbiertaDeUsuario($user->id, $venta->tienda_id);
-            if (! $sesion) {
+            if (!$sesion) {
                 throw new OperacionException('Debes abrir una caja para registrar el cobro de esta venta.');
             }
         }
 
         $this->descontarStock($venta, $lineas);
 
-        if (! $credito) {
+        if (!$credito) {
             $this->caja->registrarMovimiento($sesion, 'ingreso', "Venta {$venta->numero}", (float) $venta->total, $metodoId, $venta, $user->id);
             $venta->update(['pagado' => $venta->total, 'saldo' => 0, 'caja_sesion_id' => $sesion->id]);
 

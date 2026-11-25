@@ -50,7 +50,7 @@
                     <tbody>
                         @foreach ($venta->detalles as $d)
                             <tr>
-                                <td>{{ $d->producto->codigo }} - {{ $d->producto->nombre }}</td>
+                                <td>{{ $d->producto->codigo }} - {{ $d->producto->nombre }}@if ($d->presentacion_nombre)<br><small class="text-muted">{{ $d->presentacion_nombre }} × {{ \App\Support\Formato::cantidad($d->cantidad / max((float) $d->factor, 1)) }}</small>@endif</td>
                                 <td>{{ $d->lote->numero_lote ?? '—' }}</td>
                                 <td class="text-end">{{ \App\Support\Formato::cantidad($d->cantidad) }}</td>
                                 <td class="text-end">{{ \App\Support\Formato::dinero($d->precio_unitario) }}</td>

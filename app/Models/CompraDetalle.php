@@ -15,7 +15,18 @@ class CompraDetalle extends Model
     protected $table = 'compra_detalles';
 
     protected $fillable = [
-        'compra_id', 'producto_id', 'lote_id', 'numero_lote', 'fecha_vencimiento', 'cantidad', 'costo_unitario', 'descuento', 'subtotal',
+        'compra_id',
+        'producto_id',
+        'lote_id',
+        'numero_lote',
+        'fecha_vencimiento',
+        'cantidad',
+        'costo_unitario',
+        'descuento',
+        'subtotal',
+        'presentacion_id',
+        'presentacion_nombre',
+        'factor',
     ];
 
     protected $casts = [

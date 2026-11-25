@@ -27,9 +27,9 @@ class AutomatizacionController extends Controller
         $this->servicio->asegurarConfiguracion(TiendaContext::permitidas());
 
         $automatizaciones = Automatizacion::with('tienda')
-            ->where(fn ($q) => $q->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
+            ->where(fn($q) => $q->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
             ->orderByRaw('tienda_id IS NULL DESC')->orderBy('tienda_id')->orderBy('hora_ejecucion')->orderBy('codigo')
-            ->get()->groupBy(fn ($a) => $a->tienda?->nombre ?? 'Globales (todo el sistema)');
+            ->get()->groupBy(fn($a) => $a->tienda?->nombre ?? 'Globales (todo el sistema)');
 
         $breadcrumb = $this->breadcrumb(['Automatizaciones' => route('automatizaciones.index')]);
 
@@ -67,7 +67,7 @@ class AutomatizacionController extends Controller
 
         $automatizacion->update([
             'activo' => $request->boolean('activo'),
-            'hora_ejecucion' => $automatizacion->frecuencia === 'diaria' && ! empty($data['hora_ejecucion']) ? $data['hora_ejecucion'] . ':00' : $automatizacion->hora_ejecucion,
+            'hora_ejecucion' => $automatizacion->frecuencia === 'diaria' && !empty($data['hora_ejecucion']) ? $data['hora_ejecucion'] . ':00' : $automatizacion->hora_ejecucion,
             'parametros' => $parametros,
         ]);
 
@@ -84,20 +84,20 @@ class AutomatizacionController extends Controller
 
         $log = $this->servicio->ejecutar($automatizacion);
 
-        return back()->with($log->estado === 'error' ? 'error' : 'success', "{$automatizacion->nombre}: " . ($log->mensaje ?? $log->estado));
+        return back()->with($log->estado === 'error' ? 'error' : 'status', "{$automatizacion->nombre}: " . ($log->mensaje ?? $log->estado));
     }
 
     public function logs(Request $request)
     {
         $logs = AutomatizacionLog::with(['automatizacion', 'tienda'])
-            ->where(fn ($q) => $q->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
-            ->when($request->filled('estado'), fn ($q) => $q->where('estado', $request->input('estado')))
-            ->when($request->filled('codigo'), fn ($q) => $q->whereHas('automatizacion', fn ($a) => $a->where('codigo', $request->input('codigo'))))
-            ->when($request->filled('desde'), fn ($q) => $q->whereDate('iniciada_at', '>=', $request->input('desde')))
+            ->where(fn($q) => $q->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
+            ->when($request->filled('estado'), fn($q) => $q->where('estado', $request->input('estado')))
+            ->when($request->filled('codigo'), fn($q) => $q->whereHas('automatizacion', fn($a) => $a->where('codigo', $request->input('codigo'))))
+            ->when($request->filled('desde'), fn($q) => $q->whereDate('iniciada_at', '>=', $request->input('desde')))
             ->orderByDesc('iniciada_at')->orderByDesc('id')
             ->paginate(20)->withQueryString();
 
-        $codigos = collect(AutomatizacionCatalogo::definiciones())->map(fn ($d) => $d['nombre'])->all();
+        $codigos = collect(AutomatizacionCatalogo::definiciones())->map(fn($d) => $d['nombre'])->all();
         $breadcrumb = $this->breadcrumb(['Automatizaciones' => route('automatizaciones.index'), 'Historial' => null]);
 
         return view('ventas.automatizaciones.logs', compact('logs', 'codigos', 'breadcrumb'));
@@ -107,9 +107,9 @@ class AutomatizacionController extends Controller
     {
         $q = trim((string) $request->input('q'));
 
-        $correos = ColaCorreo::where(fn ($c) => $c->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
-            ->when($q !== '', fn ($c) => $c->where(fn ($w) => $w->where('destinatario', 'like', "%{$q}%")->orWhere('asunto', 'like', "%{$q}%")))
-            ->when($request->filled('estado'), fn ($c) => $c->where('estado', $request->input('estado')))
+        $correos = ColaCorreo::where(fn($c) => $c->whereNull('tienda_id')->orWhereIn('tienda_id', TiendaContext::ids()))
+            ->when($q !== '', fn($c) => $c->where(fn($w) => $w->where('destinatario', 'like', "%{$q}%")->orWhere('asunto', 'like', "%{$q}%")))
+            ->when($request->filled('estado'), fn($c) => $c->where('estado', $request->input('estado')))
             ->orderByDesc('id')->paginate(20)->withQueryString();
 
         $breadcrumb = $this->breadcrumb(['Automatizaciones' => route('automatizaciones.index'), 'Cola de correos' => null]);
@@ -122,14 +122,14 @@ class AutomatizacionController extends Controller
         abort_unless($correo->tienda_id === null || in_array((int) $correo->tienda_id, TiendaContext::ids(), true), 403);
         $this->correos->reintentar($correo);
 
-        return back()->with('success', 'El correo volvió a la cola.');
+        return back()->with('status', 'El correo volvió a la cola.');
     }
 
     public function correosEnviar()
     {
-        $r = $this->correos->procesarPendientes();
+        ColaCorreo::where('estado', 'pendiente')->each(fn($c) => app(CorreoService::class)->despachar($c));
 
-        return back()->with($r['errores'] ? 'error' : 'success', "Enviados: {$r['enviados']} · Con error: {$r['errores']}");
+        return back()->with('status', "Correos enviados.");
     }
 
     private function autorizar(Automatizacion $automatizacion): void

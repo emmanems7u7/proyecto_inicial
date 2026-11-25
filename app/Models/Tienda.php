@@ -13,8 +13,18 @@ class Tienda extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'empresa_id', 'codigo', 'nombre', 'direccion', 'telefono', 'email',
-        'ciudad_id', 'es_matriz', 'estado',
+        'empresa_id',
+        'codigo',
+        'nombre',
+        'direccion',
+        'telefono',
+        'email',
+        'ciudad_id',
+        'es_matriz',
+        'estado',
+        'rubro',
+        'prefijo_comprobante',
+        'pie_ticket',
     ];
 
     protected $casts = ['es_matriz' => 'boolean'];

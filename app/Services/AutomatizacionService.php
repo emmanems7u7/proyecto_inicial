@@ -19,7 +19,7 @@ use App\Support\Formato;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
-
+use App\Jobs\EjecutarAutomatizacionJob;
 /**
  * Motor de automatizaciones. La tabla `automatizaciones` guarda la configuración;
  * el comando `ventas:automatizaciones` (cada minuto) ejecuta las que toquen.
@@ -65,7 +65,7 @@ class AutomatizacionService
     private function config(string $codigo, ?int $tiendaId): ?Automatizacion
     {
         $def = AutomatizacionCatalogo::definiciones()[$codigo] ?? null;
-        if (! $def) {
+        if (!$def) {
             return null;
         }
         $tiendaId = $def['alcance'] === 'global' ? null : $tiendaId;
@@ -84,7 +84,7 @@ class AutomatizacionService
         $n = 0;
         foreach (Automatizacion::where('activo', true)->get() as $a) {
             if ($this->estaPendiente($a)) {
-                $this->ejecutar($a);
+                EjecutarAutomatizacionJob::dispatch($a->id);
                 $n++;
             }
         }
@@ -94,18 +94,18 @@ class AutomatizacionService
 
     public function estaPendiente(Automatizacion $a): bool
     {
-        if (! $a->activo || $a->frecuencia === 'evento') {
+        if (!$a->activo || $a->frecuencia === 'evento') {
             return false;
         }
 
         $ahora = now();
         if ($a->frecuencia === 'cada_hora') {
-            return ! $a->ultima_ejecucion_at || $a->ultima_ejecucion_at->lte($ahora->copy()->subHour());
+            return !$a->ultima_ejecucion_at || $a->ultima_ejecucion_at->lte($ahora->copy()->subHour());
         }
 
         $programada = $ahora->copy()->setTimeFromTimeString($a->hora_ejecucion ?: '00:00:00');
 
-        return $ahora->gte($programada) && (! $a->ultima_ejecucion_at || $a->ultima_ejecucion_at->lt($programada));
+        return $ahora->gte($programada) && (!$a->ultima_ejecucion_at || $a->ultima_ejecucion_at->lt($programada));
     }
 
     public function ejecutar(Automatizacion $a): AutomatizacionLog
@@ -119,7 +119,7 @@ class AutomatizacionService
 
         try {
             $metodo = 'run' . Str::studly($a->codigo);
-            if (! method_exists($this, $metodo)) {
+            if (!method_exists($this, $metodo)) {
                 throw new \RuntimeException("La automatización {$a->codigo} no se ejecuta manualmente.");
             }
             $res = $this->{$metodo}($a);
@@ -148,7 +148,7 @@ class AutomatizacionService
             $a = $this->config('comprobante_venta', $venta->tienda_id);
             $venta->loadMissing(['cliente', 'tienda', 'detalles.producto', 'vendedor']);
 
-            if (! $a || ! $a->activo || ! $venta->cliente || ! $venta->cliente->email) {
+            if (!$a || !$a->activo || !$venta->cliente || !$venta->cliente->email) {
                 return;
             }
 
@@ -164,7 +164,7 @@ class AutomatizacionService
                 'total' => Formato::dinero($venta->total),
                 'pagado' => Formato::dinero($venta->pagado),
                 'saldo' => Formato::dinero($venta->saldo),
-                'items' => $venta->detalles->map(fn ($d) => [
+                'items' => $venta->detalles->map(fn($d) => [
                     'producto' => $d->producto->nombre,
                     'cantidad' => Formato::cantidad($d->cantidad),
                     'precio' => Formato::dinero($d->precio_unitario),
@@ -180,7 +180,7 @@ class AutomatizacionService
     {
         try {
             $a = $this->config('bienvenida_usuario', null);
-            if (! $a || ! $a->activo || ! $usuario->email) {
+            if (!$a || !$a->activo || !$usuario->email) {
                 return;
             }
             $this->encolar($usuario->email, 'Bienvenido al sistema', 'bienvenida', [
@@ -200,8 +200,8 @@ class AutomatizacionService
     {
         $sesiones = CajaSesion::with(['caja', 'usuarioApertura'])
             ->where('estado', 'abierta')
-            ->whereHas('caja', fn ($q) => $q->where('tienda_id', $a->tienda_id))
-            ->when($a->parametro('solo_dias_anteriores'), fn ($q) => $q->where('fecha_apertura', '<', today()))
+            ->whereHas('caja', fn($q) => $q->where('tienda_id', $a->tienda_id))
+            ->when($a->parametro('solo_dias_anteriores'), fn($q) => $q->where('fecha_apertura', '<', today()))
             ->get();
 
         $resumen = [];
@@ -219,7 +219,9 @@ class AutomatizacionService
 
         if ($resumen) {
             $this->enviarATodos($a, 'Cierre automático de cajas - ' . $a->tienda->nombre, 'cierre_caja', [
-                'tienda' => $a->tienda->nombre, 'fecha' => now()->format('d/m/Y H:i'), 'cajas' => $resumen,
+                'tienda' => $a->tienda->nombre,
+                'fecha' => now()->format('d/m/Y H:i'),
+                'cajas' => $resumen,
             ]);
         }
 
@@ -239,7 +241,7 @@ class AutomatizacionService
             'contado' => Formato::dinero((clone $ventas)->where('tipo_pago', 'contado')->sum('total')),
             'credito' => Formato::dinero((clone $ventas)->where('tipo_pago', 'credito')->sum('total')),
             'devoluciones' => Formato::dinero($devoluciones),
-            'cajas_abiertas' => CajaSesion::where('estado', 'abierta')->whereHas('caja', fn ($q) => $q->where('tienda_id', $a->tienda_id))->count(),
+            'cajas_abiertas' => CajaSesion::where('estado', 'abierta')->whereHas('caja', fn($q) => $q->where('tienda_id', $a->tienda_id))->count(),
         ];
 
         $this->enviarATodos($a, "Resumen de ventas {$datos['fecha']} - {$datos['tienda']}", 'resumen_ventas', $datos);
@@ -250,7 +252,7 @@ class AutomatizacionService
     private function runAlertaStockMinimo(Automatizacion $a): array
     {
         $filas = Inventario::with(['producto', 'almacen'])
-            ->whereHas('almacen', fn ($q) => $q->where('tienda_id', $a->tienda_id))
+            ->whereHas('almacen', fn($q) => $q->where('tienda_id', $a->tienda_id))
             ->where('stock_minimo', '>', 0)
             ->whereColumn('cantidad', '<=', 'stock_minimo')
             ->whereNull('alerta_stock_enviada_at')
@@ -260,7 +262,7 @@ class AutomatizacionService
             return ['estado' => 'omitido', 'mensaje' => 'Sin productos nuevos bajo el mínimo.'];
         }
 
-        $items = $filas->map(fn ($i) => [
+        $items = $filas->map(fn($i) => [
             'producto' => $i->producto->codigo . ' - ' . $i->producto->nombre,
             'almacen' => $i->almacen->nombre,
             'stock' => Formato::cantidad($i->cantidad),
@@ -278,7 +280,7 @@ class AutomatizacionService
         $dias = (int) $a->parametro('dias_aviso', 30);
 
         $lotes = Lote::with(['producto', 'almacen'])
-            ->whereHas('almacen', fn ($q) => $q->where('tienda_id', $a->tienda_id))
+            ->whereHas('almacen', fn($q) => $q->where('tienda_id', $a->tienda_id))
             ->where('cantidad_actual', '>', 0)
             ->whereNotNull('fecha_vencimiento')
             ->whereDate('fecha_vencimiento', '<=', today()->addDays($dias)->toDateString())
@@ -290,7 +292,7 @@ class AutomatizacionService
             return ['estado' => 'omitido', 'mensaje' => 'Sin lotes nuevos por vencer.'];
         }
 
-        $items = $lotes->map(fn ($l) => [
+        $items = $lotes->map(fn($l) => [
             'producto' => $l->producto->codigo . ' - ' . $l->producto->nombre,
             'almacen' => $l->almacen->nombre,
             'lote' => $l->numero_lote,
@@ -317,7 +319,7 @@ class AutomatizacionService
             ->where('saldo', '>', 0)
             ->whereDate('fecha_vencimiento', '<=', today()->addDays($antes)->toDateString())
             ->where('recordatorios_enviados', '<', $max)
-            ->where(fn ($q) => $q->whereNull('ultimo_recordatorio_at')->orWhere('ultimo_recordatorio_at', '<=', now()->subDays($cada)))
+            ->where(fn($q) => $q->whereNull('ultimo_recordatorio_at')->orWhere('ultimo_recordatorio_at', '<=', now()->subDays($cada)))
             ->orderBy('fecha_vencimiento')
             ->get();
 
@@ -330,14 +332,21 @@ class AutomatizacionService
         foreach ($cuentas as $c) {
             $dias = (int) today()->diffInDays($c->fecha_vencimiento, false);
             $resumen[] = [
-                'tercero' => $c->cliente->nombre, 'documento' => $c->numero_documento,
-                'vence' => $c->fecha_vencimiento->format('d/m/Y'), 'dias' => $dias, 'saldo' => Formato::dinero($c->saldo),
+                'tercero' => $c->cliente->nombre,
+                'documento' => $c->numero_documento,
+                'vence' => $c->fecha_vencimiento->format('d/m/Y'),
+                'dias' => $dias,
+                'saldo' => Formato::dinero($c->saldo),
             ];
 
             if ($c->cliente->email) {
                 $this->encolar($c->cliente->email, "Recordatorio de pago - {$c->numero_documento}", 'recordatorio_cxc', [
-                    'cliente' => $c->cliente->nombre, 'tienda' => $c->tienda->nombre, 'documento' => $c->numero_documento,
-                    'vence' => $c->fecha_vencimiento->format('d/m/Y'), 'dias' => $dias, 'saldo' => Formato::dinero($c->saldo),
+                    'cliente' => $c->cliente->nombre,
+                    'tienda' => $c->tienda->nombre,
+                    'documento' => $c->numero_documento,
+                    'vence' => $c->fecha_vencimiento->format('d/m/Y'),
+                    'dias' => $dias,
+                    'saldo' => Formato::dinero($c->saldo),
                 ], $a->tienda_id, $a->id);
                 $aClientes++;
             }
@@ -346,7 +355,10 @@ class AutomatizacionService
         }
 
         $this->enviarATodos($a, 'Cuentas por cobrar por vencer o vencidas - ' . $a->tienda->nombre, 'alerta_cuentas', [
-            'titulo' => 'Cuentas por cobrar', 'tienda' => $a->tienda->nombre, 'tercero' => 'Cliente', 'items' => $resumen,
+            'titulo' => 'Cuentas por cobrar',
+            'tienda' => $a->tienda->nombre,
+            'tercero' => 'Cliente',
+            'items' => $resumen,
         ]);
 
         return ['mensaje' => count($resumen) . " documento(s); {$aClientes} recordatorio(s) a clientes.", 'detalle' => $resumen];
@@ -361,7 +373,7 @@ class AutomatizacionService
             ->whereNotIn('estado', ['pagada', 'anulada'])
             ->where('saldo', '>', 0)
             ->whereDate('fecha_vencimiento', '<=', today()->addDays($antes)->toDateString())
-            ->where(fn ($q) => $q->whereNull('ultima_alerta_at')->orWhere('ultima_alerta_at', '<', today()))
+            ->where(fn($q) => $q->whereNull('ultima_alerta_at')->orWhere('ultima_alerta_at', '<', today()))
             ->orderBy('fecha_vencimiento')
             ->get();
 
@@ -369,14 +381,19 @@ class AutomatizacionService
             return ['estado' => 'omitido', 'mensaje' => 'Sin pagos próximos.'];
         }
 
-        $items = $cuentas->map(fn ($c) => [
-            'tercero' => $c->proveedor->nombre, 'documento' => $c->numero_documento,
+        $items = $cuentas->map(fn($c) => [
+            'tercero' => $c->proveedor->nombre,
+            'documento' => $c->numero_documento,
             'vence' => $c->fecha_vencimiento->format('d/m/Y'),
-            'dias' => (int) today()->diffInDays($c->fecha_vencimiento, false), 'saldo' => Formato::dinero($c->saldo),
+            'dias' => (int) today()->diffInDays($c->fecha_vencimiento, false),
+            'saldo' => Formato::dinero($c->saldo),
         ])->all();
 
         $this->enviarATodos($a, 'Pagos a proveedores próximos o vencidos - ' . $a->tienda->nombre, 'alerta_cuentas', [
-            'titulo' => 'Cuentas por pagar', 'tienda' => $a->tienda->nombre, 'tercero' => 'Proveedor', 'items' => $items,
+            'titulo' => 'Cuentas por pagar',
+            'tienda' => $a->tienda->nombre,
+            'tercero' => 'Proveedor',
+            'items' => $items,
         ]);
         CuentaPorPagar::whereIn('id', $cuentas->pluck('id'))->update(['ultima_alerta_at' => now()]);
 
@@ -391,7 +408,7 @@ class AutomatizacionService
         $cxp = CuentaPorPagar::where('tienda_id', $a->tienda_id)->whereIn('estado', ['pendiente', 'parcial'])
             ->where('saldo', '>', 0)->whereDate('fecha_vencimiento', '<', today()->toDateString())->update(['estado' => 'vencida']);
 
-        $lotes = Lote::whereHas('almacen', fn ($q) => $q->where('tienda_id', $a->tienda_id))
+        $lotes = Lote::whereHas('almacen', fn($q) => $q->where('tienda_id', $a->tienda_id))
             ->where('cantidad_actual', '>', 0)->where('estado', 1)->whereNotNull('fecha_vencimiento')
             ->whereDate('fecha_vencimiento', '<', today()->toDateString())->update(['estado' => 0]);
 
@@ -404,13 +421,13 @@ class AutomatizacionService
     private function runRespaldoBd(Automatizacion $a): array
     {
         $cn = config('database.connections.' . config('database.default'));
-        if (! in_array($cn['driver'] ?? '', ['mysql', 'mariadb'], true)) {
+        if (!in_array($cn['driver'] ?? '', ['mysql', 'mariadb'], true)) {
             throw new \RuntimeException('El respaldo automático solo soporta MySQL/MariaDB.');
         }
 
         $bin = $a->parametro('ruta_mysqldump') ?: 'mysqldump';
         $dir = storage_path('app/backups');
-        if (! is_dir($dir)) {
+        if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
 
@@ -418,8 +435,14 @@ class AutomatizacionService
         $gz = gzopen($archivo, 'wb9');
 
         $proceso = new Process([
-            $bin, '--host=' . $cn['host'], '--port=' . ($cn['port'] ?? 3306), '--user=' . $cn['username'],
-            '--single-transaction', '--routines', '--triggers', $cn['database'],
+            $bin,
+            '--host=' . $cn['host'],
+            '--port=' . ($cn['port'] ?? 3306),
+            '--user=' . $cn['username'],
+            '--single-transaction',
+            '--routines',
+            '--triggers',
+            $cn['database'],
         ], null, ['MYSQL_PWD' => $cn['password'] ?? '']);
         $proceso->setTimeout(900);
 
@@ -433,7 +456,7 @@ class AutomatizacionService
         });
         gzclose($gz);
 
-        if (! $proceso->isSuccessful()) {
+        if (!$proceso->isSuccessful()) {
             @unlink($archivo);
             throw new \RuntimeException('mysqldump falló: ' . Str::limit(trim($err), 200, ''));
         }
@@ -455,7 +478,7 @@ class AutomatizacionService
 
     private function encolar(string $destinatario, string $asunto, string $plantilla, array $datos, ?int $tiendaId, ?int $automatizacionId): ColaCorreo
     {
-        return ColaCorreo::create([
+        $correo = ColaCorreo::create([
             'tienda_id' => $tiendaId,
             'automatizacion_id' => $automatizacionId,
             'destinatario' => $destinatario,
@@ -465,6 +488,10 @@ class AutomatizacionService
             'estado' => 'pendiente',
             'intentos' => 0,
         ]);
+
+        app(CorreoService::class)->despachar($correo);
+
+        return $correo;
     }
 
     private function enviarATodos(Automatizacion $a, string $asunto, string $plantilla, array $datos): void
@@ -478,8 +505,8 @@ class AutomatizacionService
     private function destinatarios(Automatizacion $a): array
     {
         $manuales = collect(preg_split('/[,;\s]+/', (string) $a->parametro('correos', '')) ?: [])
-            ->map(fn ($c) => trim($c))
-            ->filter(fn ($c) => filter_var($c, FILTER_VALIDATE_EMAIL))
+            ->map(fn($c) => trim($c))
+            ->filter(fn($c) => filter_var($c, FILTER_VALIDATE_EMAIL))
             ->unique()->values()->all();
 
         if ($manuales) {
@@ -489,11 +516,11 @@ class AutomatizacionService
         return User::query()
             ->whereNotNull('email')
             ->where(function ($q) use ($a) {
-                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['admin', 'administrador_general']));
+                $q->whereHas('roles', fn($r) => $r->whereIn('name', ['admin', 'administrador_general']));
                 if ($a->tienda_id) {
-                    $q->orWhere(fn ($q2) => $q2
-                        ->whereHas('roles', fn ($r) => $r->where('name', 'administrador_tienda'))
-                        ->whereHas('tiendas', fn ($t) => $t->where('tiendas.id', $a->tienda_id)));
+                    $q->orWhere(fn($q2) => $q2
+                        ->whereHas('roles', fn($r) => $r->where('name', 'administrador_tienda'))
+                        ->whereHas('tiendas', fn($t) => $t->where('tiendas.id', $a->tienda_id)));
                 }
             })
             ->pluck('email')->unique()->values()->all();

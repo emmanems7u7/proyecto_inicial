@@ -52,6 +52,9 @@ use App\Http\Controllers\Ventas\ReporteController;
 use App\Http\Controllers\Ventas\TransferenciaController;
 use App\Http\Controllers\Ventas\VentaController;
 
+use App\Http\Controllers\Ventas\MisTiendasController;
+use App\Http\Controllers\Ventas\TiendaConfiguracionController;
+
 /*
 |--------------------------------------------------------------------------
 | RUTAS PÚBLICAS (SIN AUTH)
@@ -356,6 +359,19 @@ Route::middleware(['auth', ContextoTienda::class])->group(function () {
     Route::post('ventas/{venta}/anular', [VentaController::class, 'anular'])->name('ventas.anular')->middleware('can:ventas.anular');
     Route::get('ventas/{venta}/devolucion', [VentaController::class, 'devolucionCreate'])->name('ventas.devolucion.create')->middleware('can:ventas.devolver');
     Route::post('ventas/{venta}/devolucion', [VentaController::class, 'devolucionStore'])->name('ventas.devolucion.store')->middleware('can:ventas.devolver');
+
+
+
+
+    Route::middleware(['auth', ContextoTienda::class])->group(function () {
+        Route::get('mis-tiendas', [MisTiendasController::class, 'index'])->name('mis_tiendas.index');
+        Route::post('mis-tiendas/{tienda}/entrar', [MisTiendasController::class, 'entrar'])->name('mis_tiendas.entrar');
+
+        Route::get('tiendas/{tienda}/configuracion', [TiendaConfiguracionController::class, 'show'])->name('tiendas.configuracion')->middleware('can:tiendas.editar');
+        Route::post('tiendas/{tienda}/configuracion/administrador', [TiendaConfiguracionController::class, 'administrador'])->name('tiendas.configuracion.administrador')->middleware('can:tiendas.usuarios');
+        Route::post('tiendas/{tienda}/configuracion/caja', [TiendaConfiguracionController::class, 'caja'])->name('tiendas.configuracion.caja')->middleware('can:cajas.crear');
+    });
+
 
     // Órdenes de compra
     Route::get('ordenes-compra', [OrdenCompraController::class, 'index'])->name('ordenes_compra.index')->middleware('can:ordenes_compra.ver');

@@ -2,63 +2,77 @@
 
 namespace App\Services;
 
+use App\Jobs\EnviarCorreoJob;
 use App\Models\ColaCorreo;
 use Illuminate\Support\Facades\Mail;
 
-/** Envía los correos pendientes de la cola (tabla cola_correos) con reintentos. */
+/** Registra correos en cola_correos y los envía mediante la cola real de Laravel. */
 class CorreoService
 {
-    public const MAX_INTENTOS = 3;
+    /**
+     * Único punto de entrada para mandar un correo desde cualquier automatización.
+     * Usa $cuerpo (HTML) o $plantilla (vista ventas.emails.{plantilla}) con $datos.
+     */
+    public function encolar(
+        string $destinatario,
+        string $asunto,
+        ?string $cuerpo = null,
+        ?string $plantilla = null,
+        array $datos = [],
+        ?int $tiendaId = null,
+        $programadoAt = null,
+    ): ColaCorreo {
+        $correo = ColaCorreo::create([
+            'tienda_id' => $tiendaId,
+            'destinatario' => $destinatario,
+            'asunto' => $asunto,
+            'cuerpo' => $cuerpo,
+            'plantilla' => $plantilla,
+            'datos' => $datos,
+            'estado' => 'pendiente',
+            'intentos' => 0,
+            'programado_at' => $programadoAt,
+        ]);
 
-    /** @return array{enviados: int, errores: int} */
-    public function procesarPendientes(int $limite = 50): array
-    {
-        $pendientes = ColaCorreo::where('estado', 'pendiente')
-            ->where('intentos', '<', self::MAX_INTENTOS)
-            ->where(fn ($q) => $q->whereNull('programado_at')->orWhere('programado_at', '<=', now()))
-            ->orderBy('id')
-            ->limit($limite)
-            ->get();
+        $this->despachar($correo);
 
-        $enviados = 0;
-        $errores = 0;
-
-        foreach ($pendientes as $correo) {
-            try {
-                $this->enviar($correo);
-                $correo->update(['estado' => 'enviado', 'enviado_at' => now(), 'intentos' => $correo->intentos + 1, 'error' => null]);
-                $enviados++;
-            } catch (\Throwable $e) {
-                $intentos = $correo->intentos + 1;
-                $correo->update([
-                    'intentos' => $intentos,
-                    'estado' => $intentos >= self::MAX_INTENTOS ? 'error' : 'pendiente',
-                    'error' => mb_substr($e->getMessage(), 0, 1000),
-                    'programado_at' => now()->addMinutes(5 * $intentos),
-                ]);
-                $errores++;
-            }
-        }
-
-        return ['enviados' => $enviados, 'errores' => $errores];
+        return $correo;
     }
 
+    /** Pone el job en la cola de Laravel (con retraso si está programado a futuro). */
+    public function despachar(ColaCorreo $correo): void
+    {
+        $pendiente = EnviarCorreoJob::dispatch($correo->id)->afterCommit();
+
+        if ($correo->programado_at && $correo->programado_at->isFuture()) {
+            $pendiente->delay($correo->programado_at);
+        }
+    }
+
+    /** Botón "Reintentar" de la vista: vuelve a pendiente y lo manda a la cola real. */
     public function reintentar(ColaCorreo $correo): void
     {
         $correo->update(['estado' => 'pendiente', 'intentos' => 0, 'error' => null, 'programado_at' => null]);
+
+        $this->despachar($correo);
     }
 
-    private function enviar(ColaCorreo $correo): void
+    /** Lo ejecuta el job. Envía con el mailer por defecto (conf_correos). */
+    public function enviar(ColaCorreo $correo): void
     {
         $asunto = $correo->asunto;
         $destino = $correo->destinatario;
 
         if ($correo->cuerpo) {
-            Mail::html($correo->cuerpo, fn ($m) => $m->to($destino)->subject($asunto));
+            Mail::html($correo->cuerpo, fn($m) => $m->to($destino)->subject($asunto));
 
             return;
         }
 
-        Mail::send('ventas.emails.' . $correo->plantilla, ['datos' => $correo->datos ?? []], fn ($m) => $m->to($destino)->subject($asunto));
+        Mail::send(
+            'ventas.emails.' . $correo->plantilla,
+            ['datos' => $correo->datos ?? []],
+            fn($m) => $m->to($destino)->subject($asunto)
+        );
     }
 }
